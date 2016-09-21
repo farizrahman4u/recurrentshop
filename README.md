@@ -1,2 +1,4 @@
 # recurrentshop
-Keras add-on for building complex recurrent neural networks
+Framework for building complex recurrent neural networks with Keras
+
+
