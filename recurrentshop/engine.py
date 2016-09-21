@@ -174,12 +174,7 @@ class RecurrentContainer(Layer):
 			initial_states = self.states
 		else:
 			initial_states = self.get_initial_states(x)
-		last_output, outputs, states = K.rnn(self.step, x,
-											 initial_states,
-											 go_backwards=self.go_backwards,
-											 mask=mask,
-											 unroll=self.unroll,
-											 input_length=input_shape[1])
+		last_output, outputs, states = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 		if self.stateful:
 			self.updates = []
 			for i in range(len(states)):
