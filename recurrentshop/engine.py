@@ -295,3 +295,69 @@ class RecurrentContainer(Layer):
 		rc = cls(**config)
 		rc.model = Sequential.from_config(model_config)
 		return rc
+
+
+class StateSyncRecurrentContainer(RecurrentContainer):
+	'''States will propogate through the RNNCells. i.e, all RNNCells will share a common set of states.
+	'''
+
+	def add(self, layer):
+		super(StateSyncRecurrentContainer, self).add(layer)
+		if _isRNN(layer):
+			if hasattr(self, 'nb_states') and len(layer.states) != self.nb_states:
+				raise Exception('Incompatible layer.')
+			else:
+				self.nb_states = len(layer.states)
+
+	def get_initial_states(self, x):
+		batch_size = self.input_spec[0].shape[0]
+		input_length = self.input_spec[0].shape[1]
+		if input_length is None:
+			input_length = K.shape(x)[1]
+		if batch_size is None:
+			batch_size = K.shape(x)[0]
+		input = self._get_first_timestep(x)
+		for layer in self.model.layers:
+			if _isRNN(layer):
+				layer_initial_states = []
+				for state in layer.states:
+					state = self._get_state_from_info(state, input, batch_size, input_length)
+					if type(state) != list:
+						state = [state]
+					layer_initial_states += state
+				return layer_initial_states
+			else:
+				input = layer.call(input)
+		return []
+
+	def reset_states(self):
+		batch_size = self.input_spec[0].shape[0]
+		input_length = self.input_spec[0].shape[1]
+		states = []
+		for layer in self.model.layers:
+			if _isRNN(layer):
+				for state in layer.states:
+					assert type(state) in [tuple, list] or 'numpy' in str(type(state)), 'Stateful RNNs require states with static shapes'
+					if 'numpy' in str(type(state)):
+						states += [K.variable(state)]
+					else:
+						state = list(state)
+						for i in range(len(state)):
+							if state[i] in [-1, 'batch_size']:
+								assert type(batch_size) == int, 'Stateful RNNs require states with static shapes'
+								state[i] = batch_size
+							elif state[i] == 'input_length':
+								assert type(input_length) == int, 'Stateful RNNs require states with static shapes'
+								state[i] = input_length
+						states += [K.variable(np.zeros(state))]
+				self.states = states
+				return
+
+	def step(self, x, states):
+		states = list(states)
+		for layer in self.model.layers:
+			if _isRNN(layer):
+				x, states = layer._step(x, states)
+			else:
+				x = layer.call(x)
+		return x, states
