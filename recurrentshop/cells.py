@@ -6,10 +6,7 @@ import numpy as np
 
 class SimpleRNNCell(RNNCell):
 
-	def __init__(self, output_dim,
-				 init='glorot_uniform', inner_init='orthogonal',
-				 activation='tanh',
-				 W_regularizer=None, U_regularizer=None, b_regularizer=None, **kwargs):
+	def __init__(self, output_dim, init='glorot_uniform', inner_init='orthogonal', activation='tanh', W_regularizer=None, U_regularizer=None, b_regularizer=None, **kwargs):
 		self.output_dim = output_dim
 		self.init = initializations.get(init)
 		self.inner_init = initializations.get(inner_init)
@@ -51,11 +48,7 @@ class SimpleRNNCell(RNNCell):
 
 class GRUCell(RNNCell):
 
-	def __init__(self, output_dim,
-				 init='glorot_uniform', inner_init='orthogonal',
-				 activation='tanh', inner_activation='hard_sigmoid',
-				 W_regularizer=None, U_regularizer=None, b_regularizer=None,
-				 **kwargs):
+	def __init__(self, output_dim, init='glorot_uniform', inner_init='orthogonal', activation='tanh', inner_activation='hard_sigmoid', W_regularizer=None, U_regularizer=None, b_regularizer=None, **kwargs):
 		self.output_dim = output_dim
 		self.init = initializations.get(init)
 		self.inner_init = initializations.get(inner_init)
@@ -110,12 +103,7 @@ class GRUCell(RNNCell):
 
 class LSTMCell(RNNCell):
 
-	def __init__(self, output_dim,
-				 init='glorot_uniform', inner_init='orthogonal',
-				 forget_bias_init='one', activation='tanh',
-				 inner_activation='hard_sigmoid',
-				 W_regularizer=None, U_regularizer=None, b_regularizer=None,
-				 **kwargs):
+	def __init__(self, output_dim, init='glorot_uniform', inner_init='orthogonal', forget_bias_init='one', activation='tanh', inner_activation='hard_sigmoid', W_regularizer=None, U_regularizer=None, b_regularizer=None, **kwargs):
 		self.output_dim = output_dim
 		self.init = initializations.get(init)
 		self.inner_init = initializations.get(inner_init)
