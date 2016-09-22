@@ -105,9 +105,7 @@ class RNNCell(Layer):
 
 class RecurrentContainer(Layer):
 
-	def __init__(self, weights=None,
-				 return_sequences=False, go_backwards=False, stateful=False, input_length=None,
-				 unroll=False):
+	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, input_length=None, unroll=False):
 		self.return_sequences = return_sequences
 		self.initial_weights = weights
 		self.go_backwards = go_backwards
