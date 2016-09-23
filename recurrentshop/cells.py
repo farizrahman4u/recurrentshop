@@ -119,7 +119,7 @@ class LSTMCell(RNNCell):
 		input_dim = input_shape[-1]
 		W = weight((input_dim, 4 * self.output_dim,), init=self.init, regularizer=self.W_regularizer)
 		U = weight((self.output_dim, 4 * self.output_dim,), init=self.inner_init, regularizer=self.U_regularizer)
-		b = np.concatenate([np.zeros(self.output_dim), self.forget_bias_init((self.output_dim,)).get_value(), np.zeros(2 * self.output_dim)])
+		b = np.concatenate([np.zeros(self.output_dim), K.get_value(self.forget_bias_init((self.output_dim,))), np.zeros(2 * self.output_dim)])
 		b = weight(b, regularizer=self.b_regularizer)
 		h = (-1, self.output_dim)
 		c = (-1, self.output_dim)
