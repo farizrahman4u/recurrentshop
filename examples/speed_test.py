@@ -7,6 +7,7 @@ import sys
 
 
 # Script for comparing performance of native keras and recurrentshop stacked RNN implementations
+# We observe 20-30% speed ups on GPU
 
 
 sys.setrecursionlimit(10000000)
