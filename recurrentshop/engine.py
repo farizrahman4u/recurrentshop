@@ -20,7 +20,7 @@ in which they were added.
 __author__ = "Fariz Rahman"
 __copyright__ = "Copyright 2016, datalog.ai"
 __credits__ = ["Fariz Rahman", "Malaikannan Sankarasubbu"]
-__license__ = "GPL"
+__license__ = "MIT"
 __version__ = "0.0.1"
 __maintainer__ = "Fariz Rahman"
 __email__ = "fariz@datalog.ai"
