@@ -41,6 +41,8 @@ start_time = time.time()
 model.fit(x, y, nb_epoch=nb_epoch)
 end_time = time.time()
 
+keras_time_taken = end_time - start_time
+
 # recurrentshop model
 
 rc = RecurrentContainer(input_length=input_length, unroll=unroll)
@@ -61,7 +63,6 @@ end_time = time.time()
 
 recurrentshop_time_taken = end_time - start_time
 
-keras_time_taken = 42 * 5
 speed_up = keras_time_taken / recurrentshop_time_taken
 
 
