@@ -1,2 +1,2 @@
-from engine import RNNCell, RecurrentContainer, StateSyncRecurrentContainer, weight
+from engine import RNNCell, RecurrentContainer, weight
 from cells import *

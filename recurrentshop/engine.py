@@ -105,11 +105,13 @@ class RNNCell(Layer):
 
 class RecurrentContainer(Layer):
 
-	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, input_length=None, unroll=False):
+	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, readout=False, state_sync=False, input_length=None, unroll=False):
 		self.return_sequences = return_sequences
 		self.initial_weights = weights
 		self.go_backwards = go_backwards
 		self.stateful = stateful
+		self.readout = readout
+		self.state_sync = state_sync
 		self.input_length = input_length
 		self.unroll = unroll
 		self.supports_masking = True
@@ -123,10 +125,16 @@ class RecurrentContainer(Layer):
 		'''
 		self.model.add(layer)
 		if len(self.model.layers) == 1:
+				self.nb_states = len(layer.states)
 			shape = layer.input_spec[0].shape
 			shape = (shape[0], self.input_length) + shape[1:]
 			self.batch_input_shape = shape
 			self.input_spec = [InputSpec(shape=shape)]
+		if _isRNN(layer) and self.state_sync:
+			if not hasattr(self, 'nb_states'):
+				self.nb_states = len(layer.states)
+			else:
+				assert len(layer.states) == self.nb_states, 'Incompatible layer. In a state synchronized recurrent container, all the cells should have the same number of states.'
 		if self.stateful:
 			self.reset_states()
 
@@ -157,13 +165,21 @@ class RecurrentContainer(Layer):
 		states = list(states)
 		state_index = 0
 		nb_states = []
-		for layer in self.model.layers:
+		for i in range(len(self.model.layers)):
+			layer = self.model.layers[i]
+			if self.readout and i == 0:
+				x += states[-1]
 			if _isRNN(layer):
-				x, new_states = layer._step(x, states[state_index : state_index + len(layer.states)])
-				states[state_index : state_index + len(layer.states)] = new_states
-				state_index += len(layer.states)
+				if self.state_sync:
+					x, states = layer._step(x, states[:len(layer.states)])
+				else:
+					x, new_states = layer._step(x, states[state_index : state_index + len(layer.states)])
+					states[state_index : state_index + len(layer.states)] = new_states
+					state_index += len(layer.states)
 			else:
 				x = layer.call(x)
+			if self.readout:
+				states[-1] = x
 		return x, states
 	
 	def call(self, x, mask=None):
@@ -199,10 +215,13 @@ class RecurrentContainer(Layer):
 					if type(state) != list:
 						state = [state]
 					layer_initial_states += state
-				initial_states += layer_initial_states
+				if not self.state_sync or initial_states == []:
+					initial_states += layer_initial_states
 				input = layer._step(input, layer_initial_states)[0]
 			else:
 				input = layer.call(input)
+		if self.readout:
+			initial_states += [K.zeros_like(input)]
 		return initial_states
 
 	def reset_states(self):
@@ -225,7 +244,14 @@ class RecurrentContainer(Layer):
 								assert type(input_length) == int, 'Stateful RNNs require states with static shapes'
 								state[i] = input_length
 						states += [K.variable(np.zeros(state))]
+				if self.state_sync:
+					break
+		if self.readout:
+			shape = list(self.model.output_shape)
+			shape.pop(1)
+			states += [K.zeros(shape)]
 		self.states = states
+
 
 	def _get_state_from_info(self, info, input, batch_size, input_length):
 		if hasattr(info, '__call__'):
@@ -281,8 +307,7 @@ class RecurrentContainer(Layer):
 		pass
 
 	def get_config(self):
-		
-		attribs = ['return_sequences', 'go_backwards', 'stateful', 'input_length', 'unroll']
+		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'input_length', 'unroll']
 		config = {x : getattr(self, x) for x in attribs}
 		config['model'] = self.model.get_config()
 		base_config = super(RecurrentContainer, self).get_config()
@@ -295,69 +320,3 @@ class RecurrentContainer(Layer):
 		rc = cls(**config)
 		rc.model = Sequential.from_config(model_config)
 		return rc
-
-
-class StateSyncRecurrentContainer(RecurrentContainer):
-	'''States will propogate through the RNNCells. i.e, all RNNCells will share a common set of states.
-	'''
-
-	def add(self, layer):
-		super(StateSyncRecurrentContainer, self).add(layer)
-		if _isRNN(layer):
-			if hasattr(self, 'nb_states') and len(layer.states) != self.nb_states:
-				raise Exception('Incompatible layer.')
-			else:
-				self.nb_states = len(layer.states)
-
-	def get_initial_states(self, x):
-		batch_size = self.input_spec[0].shape[0]
-		input_length = self.input_spec[0].shape[1]
-		if input_length is None:
-			input_length = K.shape(x)[1]
-		if batch_size is None:
-			batch_size = K.shape(x)[0]
-		input = self._get_first_timestep(x)
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				layer_initial_states = []
-				for state in layer.states:
-					state = self._get_state_from_info(state, input, batch_size, input_length)
-					if type(state) != list:
-						state = [state]
-					layer_initial_states += state
-				return layer_initial_states
-			else:
-				input = layer.call(input)
-		return []
-
-	def reset_states(self):
-		batch_size = self.input_spec[0].shape[0]
-		input_length = self.input_spec[0].shape[1]
-		states = []
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				for state in layer.states:
-					assert type(state) in [tuple, list] or 'numpy' in str(type(state)), 'Stateful RNNs require states with static shapes'
-					if 'numpy' in str(type(state)):
-						states += [K.variable(state)]
-					else:
-						state = list(state)
-						for i in range(len(state)):
-							if state[i] in [-1, 'batch_size']:
-								assert type(batch_size) == int, 'Stateful RNNs require states with static shapes'
-								state[i] = batch_size
-							elif state[i] == 'input_length':
-								assert type(input_length) == int, 'Stateful RNNs require states with static shapes'
-								state[i] = input_length
-						states += [K.variable(np.zeros(state))]
-				self.states = states
-				return
-
-	def step(self, x, states):
-		states = list(states)
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				x, states = layer._step(x, states)
-			else:
-				x = layer.call(x)
-		return x, states
