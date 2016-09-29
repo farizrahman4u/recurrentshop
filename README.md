@@ -131,7 +131,7 @@ model.compile(loss='mse', optimizer='sgd')
 
 # Installation
 
-```
+```shell
 git clone https://www.github.com/datalogai/recurrentshop.git
 cd recurrentshop
 python setup.py installation
