@@ -60,7 +60,7 @@ class TestDecoder(RNNCell):
 			return x, states
 		self.step = step
 		self.states = []
-		super(Decoder, self).build(input_shape)
+		super(TestDecoder, self).build(input_shape)
 
 rc = RecurrentContainer(output_length=5, decode=True)
 rc.add(TestDecoder(input_shape=(10,)))
