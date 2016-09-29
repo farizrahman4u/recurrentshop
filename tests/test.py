@@ -68,6 +68,7 @@ model.fit(x, y)
 
 ###
 
+
 class TestDecoder(RNNCell):
 	def build(self, input_shape):
 		def step(x, states):
@@ -86,4 +87,3 @@ model.compile(loss='mse', optimizer='sgd')
 x = np.zeros((100, 10))
 y = np.zeros((100, 5, 10))
 model.fit(x, y)
-

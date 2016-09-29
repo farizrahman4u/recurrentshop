@@ -141,6 +141,7 @@ class RecurrentContainer(Layer):
 		layer: Layer instance. RNNCell or a normal layer such as Dense.
 		'''
 		self.model.add(layer)
+		self.uses_learning_phase = self.model.uses_learning_phase
 		if len(self.model.layers) == 1:
 			if layer.input_spec is not None:
 				shape = layer.input_spec[0].shape
@@ -233,6 +234,8 @@ class RecurrentContainer(Layer):
 			self.updates = []
 			for i in range(len(states)):
 				self.updates.append((self.states[i], states[i]))
+		if self.decode:
+			states = states[1:]
 		self.state_outputs = states
 		if self.return_sequences:
 			return outputs
