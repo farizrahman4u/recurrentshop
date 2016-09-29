@@ -80,6 +80,12 @@ class RNNCell(Layer):
 			w += self.non_trainable_weights
 		return w
 
+	def get_layer(self, **kwargs):
+		rc = RecurrentContainer(**kwargs)
+		rc.add(self)
+		return rc
+
+
 	@weights.setter
 	def weights(self, ws):
 		self.trainable_weights = []
@@ -105,15 +111,21 @@ class RNNCell(Layer):
 
 class RecurrentContainer(Layer):
 
-	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, readout=False, state_sync=False, input_length=None, unroll=False):
-		self.return_sequences = return_sequences
+	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, readout=False, state_sync=False, decode=False, output_length=None, input_length=None, unroll=False):
+		self.return_sequences = return_sequences or decode
 		self.initial_weights = weights
 		self.go_backwards = go_backwards
 		self.stateful = stateful
 		self.readout = readout
 		self.state_sync = state_sync
+		self.decode = decode
+		if decode:
+			assert output_length, 'Missing argument: output_length should be specified for decoders.'
+		self.output_length = output_length
 		self.input_length = input_length
 		self.unroll = unroll
+		if unroll:
+			assert input_length, 'Missing argument: input_length should be specified for unrolling.'
 		self.supports_masking = True
 		self.model = Sequential()
 		super(RecurrentContainer, self).__init__()
@@ -125,9 +137,9 @@ class RecurrentContainer(Layer):
 		'''
 		self.model.add(layer)
 		if len(self.model.layers) == 1:
-				self.nb_states = len(layer.states)
 			shape = layer.input_spec[0].shape
-			shape = (shape[0], self.input_length) + shape[1:]
+			if not self.decode:
+				shape = (shape[0], self.input_length) + shape[1:]
 			self.batch_input_shape = shape
 			self.input_spec = [InputSpec(shape=shape)]
 		if _isRNN(layer) and self.state_sync:
@@ -151,20 +163,26 @@ class RecurrentContainer(Layer):
 
 	@property
 	def output_shape(self):
-		input_length = self.input_spec[0].shape[1]
 		shape = self.model.output_shape
+		if self.decode:
+			return (shape[0], self.output_length) + shape[1:]
 		if self.return_sequences:
+			input_length = self.input_spec[0].shape[1]
 			return (shape[0], input_length) + shape[1:]
 		else:
 			return shape
 
 	def get_output_shape_for(self, input_shape):
+		# this is a container
 		return self.output_shape
 
 	def step(self, x, states):
 		states = list(states)
 		state_index = 0
-		nb_states = []
+		if self.decode:
+			x = states[0]
+			_x = x
+			states = states[1:]
 		for i in range(len(self.model.layers)):
 			layer = self.model.layers[i]
 			if self.readout and i == 0:
@@ -180,6 +198,8 @@ class RecurrentContainer(Layer):
 				x = layer.call(x)
 			if self.readout:
 				states[-1] = x
+			if self.decode:
+				states = [_x] + states
 		return x, states
 	
 	def call(self, x, mask=None):
@@ -188,7 +208,11 @@ class RecurrentContainer(Layer):
 			initial_states = self.states
 		else:
 			initial_states = self.get_initial_states(x)
-		last_output, outputs, states = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+		if self.decode:
+			initial_states = [x] + initial_states
+			last_output, outputs, states = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+		else:
+			last_output, outputs, states = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 		if self.stateful:
 			self.updates = []
 			for i in range(len(states)):
@@ -206,7 +230,10 @@ class RecurrentContainer(Layer):
 			input_length = K.shape(x)[1]
 		if batch_size is None:
 			batch_size = K.shape(x)[0]
-		input = self._get_first_timestep(x)
+		if self.decode:
+			input = x
+		else:
+			input = self._get_first_timestep(x)
 		for layer in self.model.layers:
 			if _isRNN(layer):
 				layer_initial_states = []
@@ -307,7 +334,7 @@ class RecurrentContainer(Layer):
 		pass
 
 	def get_config(self):
-		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'input_length', 'unroll']
+		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll']
 		config = {x : getattr(self, x) for x in attribs}
 		config['model'] = self.model.get_config()
 		base_config = super(RecurrentContainer, self).get_config()
