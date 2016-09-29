@@ -56,6 +56,9 @@ class RNNCell(Layer):
 		if 'input_dim' in kwargs:
 			kwargs['input_shape'] = (kwargs['input_dim'],)
 			del kwargs['input_dim']
+		if 'output_dim' in kwargs:
+			self.output_dim = kwargs['output_dim']
+			del kwargs['output_dim']
 		super(RNNCell, self).__init__(**kwargs)
 
 	def _step(self, x, states):
