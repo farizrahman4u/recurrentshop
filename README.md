@@ -13,7 +13,9 @@ Recurrent shop adresses these issues by providing a set of *RNNCells*, which can
 
 Writing the RNN logic itself has been simplified to a great extend. The user is only required to provide the step function and the shapes for the weights and the states. Default initialization for weights is glorot uniform. States are initialized by zeros, unless specified otherwise.
 
- * Writing a Simple RNN cell
+------------------
+
+## Writing a Simple RNN cell
  
 ```python
  # This is only to demonstrate how easy it is to write a RNNCell.
@@ -42,7 +44,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
 
 ```
 
-* Recuurent container
+## Recuurent container
 
 ```python
 
@@ -51,7 +53,7 @@ rc.add(SimpleRNNCell(10, input_dim=20))
 rc.add(Activation('tanh'))
 ```
 
-* Stacking RNN cells
+## Stacking RNN cells
 
 ```python
 
@@ -64,7 +66,7 @@ rc.add(Activation('tanh'))
 
 ```
 
-* State synchronization
+## State synchronization
 
 ```python
 # All cells will use the same state(s)
@@ -77,7 +79,7 @@ rc.add(SimpleRNNCell(10))
 rc.add(Activation('tanh'))
 ```
 
-* Readout
+## Readout
 
 ```python
 # Output of the final layer in the previous time step is available to the first layer(added to the input by default)
@@ -90,7 +92,7 @@ rc.add(SimpleRNNCell(10))
 rc.add(Activation('tanh'))
 ```
 
-* Decoder
+## Decoder
 
 ```python
 # Here we decode a vector into a sequence of vectors. The input could also be a sequence, such as in the case of Attention models, where the whole input sequence is available to the RNN at every time step
@@ -101,11 +103,11 @@ rc = RecurrentContainer(decode=True, output_length=10)
 rc.add(SimpleRNNCell(10, input_dim=20))
 ```
 
-* LSTM and GRU
+## LSTM and GRU
 
 Recurrent Shop comes with `LSTMCell` and `GRUCell` built-in, which can be added to RecurrentContainers using the same API discussed above.
 
-* Finalizing your model
+## Finalizing your model
 
 Once your `RecurrentContainer` is ready, you can add it to a `Sequential` model, or call it using functional API like any other layer:
 
@@ -123,6 +125,9 @@ b = rc(a)
 model = Model(a, b)
 model.compile(loss='mse', optimizer='sgd')
 ```
+
+------------------
+
 
 # Installation
 
