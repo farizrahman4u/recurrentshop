@@ -29,7 +29,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
     h = (-1, output_dim)  # -1 = batch size
     W = (input_dim, output_dim)
     U = (output_dim, output_dim)
-    b = (self.output_sim,)
+    b = (self.output_dim,)
    
       def step(x, states, weights):
         h_tm1 = states[0]
