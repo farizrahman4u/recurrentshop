@@ -59,6 +59,7 @@ class RNNCell(Layer):
 		if 'output_dim' in kwargs:
 			self.output_dim = kwargs['output_dim']
 			del kwargs['output_dim']
+		self.initial_states = {}
 		super(RNNCell, self).__init__(**kwargs)
 
 	def _step(self, x, states):
@@ -88,7 +89,6 @@ class RNNCell(Layer):
 		rc.add(self)
 		return rc
 
-
 	@weights.setter
 	def weights(self, ws):
 		self.trainable_weights = []
@@ -105,11 +105,13 @@ class RNNCell(Layer):
 				w.regularizer.set_param(w.value)
 				self.regularizers += [w.regularizer]
 
+
 	def get_output_shape_for(self, input_shape):
 		if hasattr(self, 'output_dim'):
 			return input_shape[:-1] + (self.output_dim,)
 		else:
 			return input_shape
+
 
 
 class RecurrentContainer(Layer):
@@ -264,7 +266,7 @@ class RecurrentContainer(Layer):
 					assert type(state) in [tuple, list] or 'numpy' in str(type(state)), 'Stateful RNNs require states with static shapes'
 					if 'numpy' in str(type(state)):
 						states += [K.variable(state)]
-					else:
+					elif type(state) in [list, tuple]
 						state = list(state)
 						for i in range(len(state)):
 							if state[i] in [-1, 'batch_size']:
@@ -274,6 +276,8 @@ class RecurrentContainer(Layer):
 								assert type(input_length) == int, 'Stateful RNNs require states with static shapes'
 								state[i] = input_length
 						states += [K.variable(np.zeros(state))]
+					else:
+						states += [state]
 				if self.state_sync:
 					break
 		if self.readout:
@@ -286,7 +290,7 @@ class RecurrentContainer(Layer):
 	def _get_state_from_info(self, info, input, batch_size, input_length):
 		if hasattr(info, '__call__'):
 			return info(input)
-		elif type(info) is tuple:
+		elif type(info) in [list, tuple]:
 			info = list(info)
 			for i in range(len(info)):
 				if info[i] in [-1, 'batch_size']:
