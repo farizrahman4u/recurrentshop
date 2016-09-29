@@ -233,11 +233,11 @@ class RecurrentContainer(Layer):
 			self.updates = []
 			for i in range(len(states)):
 				self.updates.append((self.states[i], states[i]))
+		self.state_outputs = states
 		if self.return_sequences:
 			return outputs
 		else:
 			return last_output
-		self.state_outputs = states
 
 	def get_initial_states(self, x):
 		initial_states = []
