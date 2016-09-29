@@ -266,7 +266,7 @@ class RecurrentContainer(Layer):
 					assert type(state) in [tuple, list] or 'numpy' in str(type(state)), 'Stateful RNNs require states with static shapes'
 					if 'numpy' in str(type(state)):
 						states += [K.variable(state)]
-					elif type(state) in [list, tuple]
+					elif type(state) in [list, tuple]:
 						state = list(state)
 						for i in range(len(state)):
 							if state[i] in [-1, 'batch_size']:
