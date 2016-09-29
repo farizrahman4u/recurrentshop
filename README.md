@@ -15,7 +15,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
 
  * Writing a Simple RNN cell
  
- ```python
+```python
  # This is only to demonstrate how easy it is to write an RNNCell.
  # See recuurentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
  
@@ -52,6 +52,7 @@ rc.add(Activation('tanh'))
 ```
 
 * Stacking RNN cells
+
 ```python
 
 rc = RecurrentContainer()
