@@ -16,7 +16,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
  * Writing a Simple RNN cell
  
 ```python
- # This is only to demonstrate how easy it is to write an RNNCell.
+ # This is only to demonstrate how easy it is to write a RNNCell.
  # See recuurentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
  
  class SimpleRNNCell(RNNCell):
@@ -64,7 +64,7 @@ rc.add(Activation('tanh'))
 
 ```
 
-* State sunchronization
+* State synchronization
 
 ```python
 # All cells will use the same state(s)
@@ -106,6 +106,7 @@ rc.add(SimpleRNNCell(10, input_dim=20))
 Recurrent Shop comes with `LSTMCell` and `GRUCell` built-in, which can be added to RecurrentContainers using the same API discussed above.
 
 * Finalizing your model
+
 Once your `RecurrentContainer` is ready, you can add it to a `Sequential` model, or call it using functional API like any other layer:
 
 ```python
