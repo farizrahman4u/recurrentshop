@@ -120,7 +120,7 @@ model.compile(loss='mse', optimizer='sgd')
 ```
 
 ```python
-a = Input()
+a = Input((None, 20))
 b = rc(a)
 model = Model(a, b)
 model.compile(loss='mse', optimizer='sgd')
