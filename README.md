@@ -9,13 +9,15 @@ Ability to easily iterate over different neural network architectures is key to 
 * Feeding back the output of the last layer of a RNN stack to the first layer in next time step (readout).
 * Decoders : RNNs who can look at the whole of the input sequence / vector at every time step.
 
-Recurrent shop adresses these issues by providing a set of *RNNCells*, which can be added sequentially to container called *RecurrentContainer* along with other layers such as `Dropout` and `Activation`, very similar to adding layers to `Sequential` model in Keras. The `RecurrentContainer` then behaves like a standard Keras `Recurrent` instance. In case of RNN stacks, the computation is done depth-first, which results in significant speed ups.
+Recurrent shop adresses these issues by providing a set of *RNNCells*, which can be added sequentially to a special layer called *RecurrentContainer* along with other layers such as `Dropout` and `Activation`, very similar to adding layers to `Sequential` model in Keras. The `RecurrentContainer` then behaves like a standard Keras `Recurrent` instance. In case of RNN stacks, the computation is done depth-first, which results in significant speed ups.
 
 Writing the RNN logic itself has been simplified to a great extend. The user is only required to provide the step function and the shapes for the weights and the states. Default initialization for weights is glorot uniform. States are initialized by zeros, unless specified otherwise.
 
  * Writing a Simple RNN cell
  
  ```python
+ # This is only to demonstrate how easy it is to write an RNNCell.
+ # See recuurentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
  
  class SimpleRNNCell(RNNCell):
  
@@ -98,11 +100,18 @@ rc = RecurrentContainer(decode=True, output_length=10)
 rc.add(SimpleRNNCell(10, input_dim=20))
 ```
 
+* LSTM and GRU
+
+Recurrent Shop comes with `LSTMCell` and `GRUCell` built-in, which can be added to RecurrentContainers using the same API discussed above.
+
+* Finalizing your model
 Once your `RecurrentContainer` is ready, you can add it to a `Sequential` model, or call it using functional API like any other layer:
 
 ```python
 model = Sequential()
+# Add layers, if any
 model.add(rc)
+# Add more layers, if any
 model.compile(loss='mse', optimizer='sgd')
 ```
 
