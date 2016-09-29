@@ -40,14 +40,28 @@ model.fit(x, y)
 
 ####
 rc = RecurrentContainer(state_sync=True)
-rc.add(GRUCell(4, input_dim=5))
+rc.add(GRUCell(3, input_dim=4))
+rc.add(GRUCell(3))
+
+model = Sequential()
+model.add(rc)
+model.compile(loss='mse', optimizer='sgd')
+
+x = np.random.random((100, 10, 4))
+y = np.random.random((100, 3))
+
+model.fit(x, y)
+
+####
+rc = RecurrentContainer(state_sync=True, readout=True)
+rc.add(GRUCell(4, input_dim=4))
 rc.add(GRUCell(4))
 
 model = Sequential()
 model.add(rc)
 model.compile(loss='mse', optimizer='sgd')
 
-x = np.random.random((100, 10, 5))
+x = np.random.random((100, 10, 4))
 y = np.random.random((100, 4))
 
 model.fit(x, y)

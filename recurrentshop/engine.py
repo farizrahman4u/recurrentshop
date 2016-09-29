@@ -142,7 +142,10 @@ class RecurrentContainer(Layer):
 		'''
 		self.model.add(layer)
 		if len(self.model.layers) == 1:
-			shape = layer.input_spec[0].shape
+			if layer.input_spec is not None:
+				shape = layer.input_spec[0].shape
+			else:
+				shape = layer.input_shape
 			if not self.decode:
 				shape = (shape[0], self.input_length) + shape[1:]
 			self.batch_input_shape = shape
@@ -191,22 +194,30 @@ class RecurrentContainer(Layer):
 		for i in range(len(self.model.layers)):
 			layer = self.model.layers[i]
 			if self.readout and i == 0:
-				x += states[-1]
+				if self.readout in ['add', True]:
+					x += states[-1]
+				elif self.readout == 'mul':
+					x *= states[-1]
+				elif self.readout == 'pack':
+					x = K.pack([x, states[-1]])
+				elif self.readout == 'readout_only':
+					x = states[-1]
 			if _isRNN(layer):
 				if self.state_sync:
-					x, states = layer._step(x, states[:len(layer.states)])
+					x, new_states = layer._step(x, states[:len(layer.states)])
+					states[:len(layer.states)] = new_states
 				else:
 					x, new_states = layer._step(x, states[state_index : state_index + len(layer.states)])
 					states[state_index : state_index + len(layer.states)] = new_states
 					state_index += len(layer.states)
 			else:
 				x = layer.call(x)
-			if self.readout:
-				states[-1] = x
 			if self.decode:
 				states = [_x] + states
+		if self.readout:
+			states[-1] = x
 		return x, states
-	
+
 	def call(self, x, mask=None):
 		input_shape = self.input_spec[0].shape
 		if self.stateful:
@@ -226,6 +237,7 @@ class RecurrentContainer(Layer):
 			return outputs
 		else:
 			return last_output
+		self.state_outputs = states
 
 	def get_initial_states(self, x):
 		initial_states = []
@@ -253,7 +265,11 @@ class RecurrentContainer(Layer):
 			else:
 				input = layer.call(input)
 		if self.readout:
-			initial_states += [K.zeros_like(input)]
+			if hasattr(self, 'initial_readout'):
+				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
+				initial_states += [initial_readout]
+			else:
+				initial_states += [K.zeros_like(input)]
 		return initial_states
 
 	def reset_states(self):
