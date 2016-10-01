@@ -28,30 +28,17 @@ __status__ = "Production"
 
 
 
-def _fix_learning_phase():
-	setattr(K, '_LEARNING_PHASE', K.learning_phase())
-	def set_learning_phase(x):
-		K._LEARNING_PHASE = x
-	def learning_phase():
-		return K._LEARNING_PHASE
-	K.set_learning_phase = set_learning_phase
-	K.learning_phase = learning_phase
+class learning_phase(object):
 
+	def __init__(self, value):
+		self.value = value
 
-_fix_learning_phase()
+	def __enter__(self):
+		self.default_func = K.in_train_phase
+		K.in_train_phase = lambda *x: x[1 - self.value]
 
-
-def _in_train_phase(a, b):
-		if K._LEARNING_PHASE is 0:
-			return b
-		elif K._LEARNING_PHASE is 1:
-			return a
-		else:
-			return K.switch(K._LEARNING_PHASE, a, b)
-
-
-K.in_train_phase = _in_train_phase
-
+	def __exit__(self, *args):
+		K.in_train_phase = self.default_func
 
 
 def _isRNN(layer):
@@ -168,7 +155,7 @@ class RecurrentContainer(Layer):
 		layer: Layer instance. RNNCell or a normal layer such as Dense.
 		'''
 		self.model.add(layer)
-		self.uses_learning_phase = any([layer.uses_learning_phase for layer in self.model.layers])
+		self.uses_learning_phase = any([l.uses_learning_phase for l in self.model.layers])
 		if len(self.model.layers) == 1:
 			if layer.input_spec is not None:
 				shape = layer.input_spec[0].shape
@@ -255,26 +242,21 @@ class RecurrentContainer(Layer):
 		if self.decode:
 			initial_states = [x] + initial_states
 			if self.uses_learning_phase:
-				learning_phase = K._LEARNING_PHASE
-				K._LEARNING_PHASE = 0
-				last_output_0, outputs_0, states_0 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
-				K._LEARNING_PHASE = 1
-				last_output_1, outputs_1, states_1 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
-				K._LEARNING_PHASE = learning_phase
+				with learning_phase(0):
+					last_output_0, outputs_0, states_0 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+				with learning_phase(1):
+					last_output_1, outputs_1, states_1 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 				last_output = K.in_train_phase(last_output_1, last_output_0)
-				print last_output
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
-			else:	
+			else:
 				last_output, outputs, states = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 		else:
 			if self.uses_learning_phase:
-				learning_phase = K._LEARNING_PHASE
-				K._LEARNING_PHASE = 0
-				last_output_0, outputs_0, states_0 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
-				K._LEARNING_PHASE = 1
-				last_output_1, outputs_1, states_1 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
-				K._LEARNING_PHASE = learning_phase
+				with learning_phase(0):
+					last_output_0, outputs_0, states_0 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+				with learning_phase(1):
+					last_output_1, outputs_1, states_1 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 				last_output = K.in_train_phase(last_output_1, last_output_0)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
