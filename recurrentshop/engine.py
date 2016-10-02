@@ -27,6 +27,8 @@ __email__ = "fariz@datalog.ai"
 __status__ = "Production"
 
 
+_backend = getattr(K, K.backend() + '_backend')
+
 
 class learning_phase(object):
 
@@ -34,11 +36,11 @@ class learning_phase(object):
 		self.value = value
 
 	def __enter__(self):
-		self.default_func = K.in_train_phase
-		K.in_train_phase = lambda *x: x[1 - self.value]
+		self.learning_phase_place_holder = _backend._LEARNING_PHASE
+		_backend._LEARNING_PHASE = self.value
 
 	def __exit__(self, *args):
-		K.in_train_phase = self.default_func
+		_backend._LEARNING_PHASE = self.learning_phase_place_holder
 
 
 def _isRNN(layer):
@@ -234,6 +236,7 @@ class RecurrentContainer(Layer):
 		return x, states
 
 	def call(self, x, mask=None):
+		print 'call'
 		input_shape = self.input_spec[0].shape
 		if self.stateful:
 			initial_states = self.states
