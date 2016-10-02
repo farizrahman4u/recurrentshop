@@ -236,7 +236,6 @@ class RecurrentContainer(Layer):
 		return x, states
 
 	def call(self, x, mask=None):
-		print 'call'
 		input_shape = self.input_spec[0].shape
 		if self.stateful:
 			initial_states = self.states
