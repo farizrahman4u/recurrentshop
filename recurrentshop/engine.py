@@ -53,6 +53,23 @@ else:
 def _isRNN(layer):
 	return issubclass(layer.__class__, RNNCell)
 
+def _get_first_timestep(x):
+	slices = [slice(None)] * K.ndim(x)
+	slices[1] = 0
+	return x[slices]
+
+def _get_last_timestep(x):
+	ndim = K.ndim(x)
+	if K.backend() == 'tensorflow':
+		import tensorflow as tf
+		slice_begin = tf.pack([0, tf.shape(x)[1] - 1] + [0] * (ndim - 2))
+		slice_size = tf.pack([-1, 1] + [-1] * (ndim - 2))
+		last_output = tf.slice(x, slice_begin, slice_size)
+		last_output = tf.squeeze(last_output, [1])
+		return last_output
+	else:
+		return x[:, -1]
+
 
 class weight(object):
 
@@ -255,8 +272,8 @@ class RecurrentContainer(Layer):
 					last_output_0, outputs_0, states_0, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 				with learning_phase(1):
 					last_output_1, outputs_1, states_1, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
-				last_output = K.in_train_phase(last_output_1, last_output_0)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
+				last_output = _get_last_timestep(outputs)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
 				last_output, outputs, states, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
@@ -266,8 +283,8 @@ class RecurrentContainer(Layer):
 					last_output_0, outputs_0, states_0, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 				with learning_phase(1):
 					last_output_1, outputs_1, states_1, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
-				last_output = K.in_train_phase(last_output_1, last_output_0)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
+				last_output = _get_last_timestep(outputs)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
 				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
@@ -294,7 +311,7 @@ class RecurrentContainer(Layer):
 		if self.decode:
 			input = x
 		else:
-			input = self._get_first_timestep(x)
+			input = _get_first_timestep(x)
 		for layer in self.model.layers:
 			if _isRNN(layer):
 				layer_initial_states = []
@@ -366,11 +383,6 @@ class RecurrentContainer(Layer):
 			return K.variable(info)
 		else:
 			return info
-
-	def _get_first_timestep(self, x):
-		slices = [slice(None)] * K.ndim(x)
-		slices[1] = 0
-		return x[slices]
 
 	@property
 	def trainable_weights(self):
