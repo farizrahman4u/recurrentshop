@@ -6,7 +6,7 @@ from keras import backend as K
 
 
 
-####
+
 rc = RecurrentContainer()
 rc.add(SimpleRNNCell(4, input_dim=5))
 rc.add(GRUCell(3))
@@ -86,4 +86,18 @@ model.compile(loss='mse', optimizer='sgd')
 
 x = np.zeros((100, 10))
 y = np.zeros((100, 5, 10))
+model.fit(x, y)
+
+####
+
+rc = RecurrentContainer()
+rc.add(SimpleRNNCell(3, input_dim=3))
+rc.add(Dropout(0.5))
+model = Sequential()
+model.add(rc)
+model.compile(loss='mse', optimizer='sgd')
+
+x = np.random.random((100, 3, 3))
+y = np.random.random((100, 3))
+
 model.fit(x, y)

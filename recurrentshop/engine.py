@@ -4,6 +4,7 @@ from keras import initializations, regularizers
 from keras import backend as K
 from inspect import getargspec
 import numpy as np
+import backend
 
 
 '''Provides a simpler API for building complex recurrent neural networks using Keras.
@@ -41,6 +42,12 @@ class learning_phase(object):
 
 	def __exit__(self, *args):
 		_backend._LEARNING_PHASE = self.learning_phase_place_holder
+
+
+if K.backend() == 'theano':
+	rnn = backend.rnn
+else:
+	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]] 
 
 
 def _isRNN(layer):
@@ -245,27 +252,27 @@ class RecurrentContainer(Layer):
 			initial_states = [x] + initial_states
 			if self.uses_learning_phase:
 				with learning_phase(0):
-					last_output_0, outputs_0, states_0 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+					last_output_0, outputs_0, states_0, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 				with learning_phase(1):
-					last_output_1, outputs_1, states_1 = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+					last_output_1, outputs_1, states_1, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 				last_output = K.in_train_phase(last_output_1, last_output_0)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
-				last_output, outputs, states = K.rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+				last_output, outputs, states, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
 		else:
 			if self.uses_learning_phase:
 				with learning_phase(0):
-					last_output_0, outputs_0, states_0 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+					last_output_0, outputs_0, states_0, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 				with learning_phase(1):
-					last_output_1, outputs_1, states_1 = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+					last_output_1, outputs_1, states_1, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
 				last_output = K.in_train_phase(last_output_1, last_output_0)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
-				last_output, outputs, states = K.rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+		self.updates = updates
 		if self.stateful:
-			self.updates = []
 			for i in range(len(states)):
 				self.updates.append((self.states[i], states[i]))
 		if self.decode:
