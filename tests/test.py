@@ -6,7 +6,6 @@ from keras import backend as K
 
 
 
-
 rc = RecurrentContainer()
 rc.add(SimpleRNNCell(4, input_dim=5))
 rc.add(GRUCell(3))
@@ -70,21 +69,25 @@ model.fit(x, y)
 
 
 class TestDecoder(RNNCell):
+
 	def build(self, input_shape):
 		def step(x, states):
-			return x, states
+			return x[:, 0, :], states
 		self.step = step
 		self.states = []
 		super(TestDecoder, self).build(input_shape)
 
+	def get_output_shape_for(self, input_shape):
+		return (input_shape[0], input_shape[2])
+
 rc = RecurrentContainer(output_length=5, decode=True)
-rc.add(TestDecoder(input_shape=(10,)))
+rc.add(TestDecoder(input_shape=(10, 10)))
 
 model = Sequential()
 model.add(rc)
 model.compile(loss='mse', optimizer='sgd')
 
-x = np.zeros((100, 10))
+x = np.zeros((100, 10, 10))
 y = np.zeros((100, 5, 10))
 model.fit(x, y)
 

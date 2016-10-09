@@ -1,6 +1,7 @@
 from keras.layers import Layer, InputSpec
 from keras.models import Sequential
 from keras import initializations, regularizers
+from keras.utils.layer_utils import layer_from_config
 from keras import backend as K
 from inspect import getargspec
 import numpy as np
@@ -145,18 +146,23 @@ class RNNCell(Layer):
 				w.regularizer.set_param(w.value)
 				self.regularizers += [w.regularizer]
 
-
 	def get_output_shape_for(self, input_shape):
 		if hasattr(self, 'output_dim'):
 			return input_shape[:-1] + (self.output_dim,)
 		else:
 			return input_shape
 
+	def get_config(self):
+		config = {}
+		if hasattr(self, 'output_dim'):
+			config['output_dim'] = self.output_dim
+		base_config = super(RNNCell, self).get_config()
+		return dict(list(base_config.items()) + list(config.items()))
 
 
 class RecurrentContainer(Layer):
 
-	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, readout=False, state_sync=False, decode=False, output_length=None, input_length=None, unroll=False):
+	def __init__(self, weights=None, return_sequences=False, go_backwards=False, stateful=False, readout=False, state_sync=False, decode=False, output_length=None, input_length=None, unroll=False, **kwargs):
 		self.return_sequences = return_sequences or decode
 		self.initial_weights = weights
 		self.go_backwards = go_backwards
@@ -173,7 +179,7 @@ class RecurrentContainer(Layer):
 			assert input_length, 'Missing argument: input_length should be specified for unrolling.'
 		self.supports_masking = True
 		self.model = Sequential()
-		super(RecurrentContainer, self).__init__()
+		super(RecurrentContainer, self).__init__(**kwargs)
 
 	def add(self, layer):
 		'''Add a layer
@@ -424,5 +430,9 @@ class RecurrentContainer(Layer):
 		model_config = config['model']
 		del config['model']
 		rc = cls(**config)
-		rc.model = Sequential.from_config(model_config)
+		import cells
+		rc.model = Sequential()
+		for layer_config in model_config:
+			layer = layer_from_config(layer_config, cells.__dict__)
+			rc.add(layer)
 		return rc
