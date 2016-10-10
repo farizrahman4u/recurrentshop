@@ -9,6 +9,6 @@ setup(name='recurrentshop',
       author_email='fariz@datalog.ai',
       url='https://github.com/farizrahman4u/recurrentshop',
       download_url='https://github.com/farizrahman4u/recurrentshop',
-      license='GPL',
+      license='MIT',
       install_requires=['keras'],
       packages=find_packages())
