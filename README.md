@@ -19,7 +19,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
  
 ```python
  # This is only to demonstrate how easy it is to write a RNNCell.
- # See recuurentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
+ # See recurrentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
  
  class SimpleRNNCell(RNNCell):
  
@@ -44,7 +44,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
 
 ```
 
-## Recuurent container
+## Recurrent container
 
 ```python
 
