@@ -34,7 +34,7 @@ Writing the RNN logic itself has been simplified to a great extend. The user is 
       def step(x, states, weights):
         h_tm1 = states[0]
         W, U, b = weights
-        h = K.dot(x, W) + K.dot(h, U) + b
+        h = K.dot(x, W) + K.dot(h_tm1, U) + b
 
     self.step = step
     self.weights = [W, U, b]
