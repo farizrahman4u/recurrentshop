@@ -1,4 +1,4 @@
-from engine import RNNCell, weight
+from .engine import RNNCell, weight
 from keras import initializations, regularizers, activations
 from keras import backend as K
 import numpy as np

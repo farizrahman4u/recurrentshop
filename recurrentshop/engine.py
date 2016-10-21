@@ -5,15 +5,15 @@ from keras.utils.layer_utils import layer_from_config
 from keras import backend as K
 from inspect import getargspec
 import numpy as np
-import backend
+from . import backend
 
 
 '''Provides a simpler API for building complex recurrent neural networks using Keras.
 
 The RNN logic is written inside RNNCells, which are added sequentially to a RecurrentContainer.
-A RecurrentContainer behaves similar to a Recurrent layer in Keras, and accepts arguments like 
+A RecurrentContainer behaves similar to a Recurrent layer in Keras, and accepts arguments like
 return_sequences, unroll, stateful, etc [See Keras Recurrent docstring]
-The .add() method of a RecurrentContainer is used to add RNNCells and other layers to it. Each 
+The .add() method of a RecurrentContainer is used to add RNNCells and other layers to it. Each
 element in the input sequence passes through the layers in the RecurrentContainer in the order
 in which they were added.
 '''
@@ -48,7 +48,7 @@ class learning_phase(object):
 if K.backend() == 'theano':
 	rnn = backend.rnn
 else:
-	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]] 
+	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]]
 
 
 def _isRNN(layer):
@@ -211,7 +211,7 @@ class RecurrentContainer(Layer):
 		self.model.pop()
 		if self.stateful:
 			self.reset_states()
-	
+
 	@property
 	def input_shape(self):
 		return self.input_spec[0].shape
