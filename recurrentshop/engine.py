@@ -425,7 +425,7 @@ class RecurrentContainer(Layer):
 		pass
 
 	def get_config(self):
-		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll' 'output_length']
+		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll', 'output_length']
 		config = {x : getattr(self, x) for x in attribs}
 		config['model'] = self.model.get_config()
 		base_config = super(RecurrentContainer, self).get_config()
