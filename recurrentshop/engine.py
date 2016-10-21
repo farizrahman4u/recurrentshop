@@ -436,7 +436,7 @@ class RecurrentContainer(Layer):
 		model_config = config['model']
 		del config['model']
 		rc = cls(**config)
-		import cells
+		from . import cells
 		rc.model = Sequential()
 		for layer_config in model_config:
 			layer = layer_from_config(layer_config, cells.__dict__)
