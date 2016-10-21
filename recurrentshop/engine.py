@@ -392,6 +392,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def trainable_weights(self):
+		if not self.model.layers:
+			return []
 		return self.model.trainable_weights
 
 	@trainable_weights.setter
@@ -400,6 +402,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def non_trainable_weights(self):
+		if not self.model.layers:
+			return []
 		return self.model.non_trainable_weights
 
 	@non_trainable_weights.setter
@@ -412,6 +416,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def regularizers(self):
+		if not self.model.layers:
+			return []
 		return self.model.regularizers
 
 	@regularizers.setter
