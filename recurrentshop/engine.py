@@ -79,8 +79,8 @@ class weight(object):
 			value = (value,)
 		if type(value) in [tuple, list]:
 			if type(init) == str:
-				init = initializations.get(init, name=name)
-			self.value = init(value)
+				init = initializations.get(init)
+			self.value = init(value, name=name)
 		elif 'numpy' in str(type(value)):
 			self.value = K.variable(value, name=name)
 		else:
@@ -137,7 +137,7 @@ class RNNCell(Layer):
 		self.regularizers = []
 		for w in ws:
 			if not isinstance(w, weight):
-				w = weight(w)
+				w = weight(w, name='{}_W'.format(self.name))
 			if w.trainable:
 				self.trainable_weights += [w.value]
 			else:
