@@ -266,6 +266,11 @@ class RecurrentContainer(Layer):
 		return x, states
 
 	def call(self, x, mask=None):
+		unroll = self.unroll
+		if K.backend() == 'tensorflow':
+			cell_types = set([type(layer) for layer in self.model.layers if _isRNN(layer)])
+			if len(cell_types) > 1:
+				unroll = True
 		input_shape = self.input_spec[0].shape
 		if self.stateful:
 			initial_states = self.states
@@ -275,25 +280,25 @@ class RecurrentContainer(Layer):
 			initial_states = [x] + initial_states
 			if self.uses_learning_phase:
 				with learning_phase(0):
-					last_output_0, outputs_0, states_0, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+					last_output_0, outputs_0, states_0, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
 				with learning_phase(1):
-					last_output_1, outputs_1, states_1, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+					last_output_1, outputs_1, states_1, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				last_output = _get_last_timestep(outputs)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
-				last_output, outputs, states, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=self.unroll, input_length=self.output_length)
+				last_output, outputs, states, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
 		else:
 			if self.uses_learning_phase:
 				with learning_phase(0):
-					last_output_0, outputs_0, states_0, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+					last_output_0, outputs_0, states_0, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
 				with learning_phase(1):
-					last_output_1, outputs_1, states_1, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+					last_output_1, outputs_1, states_1, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
 				outputs = K.in_train_phase(outputs_1, outputs_0)
 				last_output = _get_last_timestep(outputs)
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
-				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=self.unroll, input_length=input_shape[1])
+				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
 		self.updates = updates
 		if self.stateful:
 			for i in range(len(states)):
