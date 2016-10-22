@@ -267,10 +267,12 @@ class RecurrentContainer(Layer):
 
 	def call(self, x, mask=None):
 		unroll = self.unroll
+		'''
 		if K.backend() == 'tensorflow':
 			cell_types = set([type(layer) for layer in self.model.layers if _isRNN(layer)])
 			if len(cell_types) > 1:
 				unroll = True
+		'''
 		input_shape = self.input_spec[0].shape
 		if self.stateful:
 			initial_states = self.states
