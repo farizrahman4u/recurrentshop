@@ -5,15 +5,15 @@ from keras.utils.layer_utils import layer_from_config
 from keras import backend as K
 from inspect import getargspec
 import numpy as np
-import backend
+from . import backend
 
 
 '''Provides a simpler API for building complex recurrent neural networks using Keras.
 
 The RNN logic is written inside RNNCells, which are added sequentially to a RecurrentContainer.
-A RecurrentContainer behaves similar to a Recurrent layer in Keras, and accepts arguments like 
+A RecurrentContainer behaves similar to a Recurrent layer in Keras, and accepts arguments like
 return_sequences, unroll, stateful, etc [See Keras Recurrent docstring]
-The .add() method of a RecurrentContainer is used to add RNNCells and other layers to it. Each 
+The .add() method of a RecurrentContainer is used to add RNNCells and other layers to it. Each
 element in the input sequence passes through the layers in the RecurrentContainer in the order
 in which they were added.
 '''
@@ -48,7 +48,7 @@ class learning_phase(object):
 if K.backend() == 'theano':
 	rnn = backend.rnn
 else:
-	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]] 
+	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]]
 
 
 def _isRNN(layer):
@@ -79,8 +79,8 @@ class weight(object):
 			value = (value,)
 		if type(value) in [tuple, list]:
 			if type(init) == str:
-				init = initializations.get(init, name=name)
-			self.value = init(value)
+				init = initializations.get(init)
+			self.value = init(value, name=name)
 		elif 'numpy' in str(type(value)):
 			self.value = K.variable(value, name=name)
 		else:
@@ -137,7 +137,7 @@ class RNNCell(Layer):
 		self.regularizers = []
 		for w in ws:
 			if not isinstance(w, weight):
-				w = weight(w)
+				w = weight(w, name='{}_W'.format(self.name))
 			if w.trainable:
 				self.trainable_weights += [w.value]
 			else:
@@ -211,7 +211,7 @@ class RecurrentContainer(Layer):
 		self.model.pop()
 		if self.stateful:
 			self.reset_states()
-	
+
 	@property
 	def input_shape(self):
 		return self.input_spec[0].shape
@@ -392,6 +392,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def trainable_weights(self):
+		if not self.model.layers:
+			return []
 		return self.model.trainable_weights
 
 	@trainable_weights.setter
@@ -400,6 +402,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def non_trainable_weights(self):
+		if not self.model.layers:
+			return []
 		return self.model.non_trainable_weights
 
 	@non_trainable_weights.setter
@@ -412,6 +416,8 @@ class RecurrentContainer(Layer):
 
 	@property
 	def regularizers(self):
+		if not self.model.layers:
+			return []
 		return self.model.regularizers
 
 	@regularizers.setter
@@ -419,7 +425,7 @@ class RecurrentContainer(Layer):
 		pass
 
 	def get_config(self):
-		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll' 'output_length']
+		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll', 'output_length']
 		config = {x : getattr(self, x) for x in attribs}
 		config['model'] = self.model.get_config()
 		base_config = super(RecurrentContainer, self).get_config()
@@ -430,7 +436,7 @@ class RecurrentContainer(Layer):
 		model_config = config['model']
 		del config['model']
 		rc = cls(**config)
-		import cells
+		from . import cells
 		rc.model = Sequential()
 		for layer_config in model_config:
 			layer = layer_from_config(layer_config, cells.__dict__)

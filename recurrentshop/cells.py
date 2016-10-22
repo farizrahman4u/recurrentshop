@@ -1,4 +1,4 @@
-from engine import RNNCell, weight
+from .engine import RNNCell, weight
 from keras import initializations, regularizers, activations
 from keras import backend as K
 import numpy as np
@@ -19,9 +19,9 @@ class SimpleRNNCell(RNNCell):
 	def build(self, input_shape):
 		input_dim = input_shape[-1]
 		h = (-1, self.output_dim)
-		W = weight((input_dim, self.output_dim), init=self.init, regularizer=self.W_regularizer)
-		U = weight((self.output_dim, self.output_dim), init=self.inner_init, regularizer=self.U_regularizer)
-		b = weight((self.output_dim,), init='zero', regularizer=self.b_regularizer)
+		W = weight((input_dim, self.output_dim), init=self.init, regularizer=self.W_regularizer, name='{}_W'.format(self.name))
+		U = weight((self.output_dim, self.output_dim), init=self.inner_init, regularizer=self.U_regularizer, name='{}_U'.format(self.name))
+		b = weight((self.output_dim,), init='zero', regularizer=self.b_regularizer, name='{}_b'.format(self.name))
 
 		def step(x, states, weights):
 			h = states[0]
@@ -62,9 +62,9 @@ class GRUCell(RNNCell):
 	def build(self, input_shape):
 		input_dim = input_shape[-1]
 		h = (-1, self.output_dim)
-		W = weight((input_dim, 3 * self.output_dim,), init=self.init, regularizer=self.W_regularizer)
-		U = weight((self.output_dim, 3 * self.output_dim,), init=self.inner_init, regularizer=self.U_regularizer)
-		b = weight((3 * self.output_dim,), init='zero', regularizer=self.b_regularizer)
+		W = weight((input_dim, 3 * self.output_dim,), init=self.init, regularizer=self.W_regularizer, name='{}_W'.format(self.name))
+		U = weight((self.output_dim, 3 * self.output_dim,), init=self.inner_init, regularizer=self.U_regularizer, name='{}_U'.format(self.name))
+		b = weight((3 * self.output_dim,), init='zero', regularizer=self.b_regularizer, name='{}_b'.format(self.name))
 
 		def step(x, states, weights):
 			h_tm1 = states[0]
@@ -117,10 +117,10 @@ class LSTMCell(RNNCell):
 
 	def build(self, input_shape):
 		input_dim = input_shape[-1]
-		W = weight((input_dim, 4 * self.output_dim,), init=self.init, regularizer=self.W_regularizer)
-		U = weight((self.output_dim, 4 * self.output_dim,), init=self.inner_init, regularizer=self.U_regularizer)
+		W = weight((input_dim, 4 * self.output_dim,), init=self.init, regularizer=self.W_regularizer, name='{}_W'.format(self.name))
+		U = weight((self.output_dim, 4 * self.output_dim,), init=self.inner_init, regularizer=self.U_regularizer, name='{}_U'.format(self.name))
 		b = np.concatenate([np.zeros(self.output_dim), K.get_value(self.forget_bias_init((self.output_dim,))), np.zeros(2 * self.output_dim)])
-		b = weight(b, regularizer=self.b_regularizer)
+		b = weight(b, regularizer=self.b_regularizer, name='{}_b'.format(self.name))
 		h = (-1, self.output_dim)
 		c = (-1, self.output_dim)
 
