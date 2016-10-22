@@ -48,7 +48,7 @@ class learning_phase(object):
 if K.backend() == 'theano':
 	rnn = backend.rnn
 else:
-	rnn = lambda *args, **kwargs: K.rnn(*args, **kwargs) + [[]]
+	rnn = lambda *args, **kwargs: list(K.rnn(*args, **kwargs)) + [[]]
 
 
 def _isRNN(layer):
