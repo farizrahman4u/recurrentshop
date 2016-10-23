@@ -2,6 +2,7 @@
 
 import theano
 import theano.tensor as T
+from keras.backend import expand_dims, zeros_like
 
 
 def rnn(step_function, inputs, initial_states,
