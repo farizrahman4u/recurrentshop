@@ -184,6 +184,7 @@ class RecurrentContainer(Layer):
 			assert input_length, 'Missing argument: input_length should be specified for unrolling.'
 		self.supports_masking = True
 		self.model = Sequential()
+		self.supports_masking = True
 		super(RecurrentContainer, self).__init__(**kwargs)
 
 	def add(self, layer):
