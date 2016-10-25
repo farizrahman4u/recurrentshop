@@ -112,6 +112,11 @@ class RNNCell(Layer):
 		args = args[:len(getargspec(self.step).args)]
 		return self.step(*args)
 
+	def call(self, x, mask=None):
+		input_ndim = K.ndim(x)
+		output_ndim = len(self.get_output_shape_for((10,) * input_ndim))
+		return K.zeros((10,) * output_ndim)
+
 	def build(self, input_shape):
 		self.input_spec = [InputSpec(shape=input_shape)]
 		super(RNNCell, self).build(input_shape)
