@@ -106,7 +106,7 @@ rc.add(SimpleRNNCell(10, input_dim=20))
 
 ## Teacher forcing
 
-See (https://www.github.com/farizrahman4u/seq2seq)[Seq2Seq]
+See [Seq2Seq](https://www.github.com/farizrahman4u/seq2seq)
 
 
 ## LSTM and GRU
