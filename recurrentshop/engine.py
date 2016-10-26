@@ -185,6 +185,7 @@ class RecurrentContainer(Layer):
 		self.supports_masking = True
 		self.model = Sequential()
 		self.supports_masking = True
+		self._truth_tensor = None
 		super(RecurrentContainer, self).__init__(**kwargs)
 
 	def add(self, layer):
@@ -193,7 +194,7 @@ class RecurrentContainer(Layer):
 		layer: Layer instance. RNNCell or a normal layer such as Dense.
 		'''
 		self.model.add(layer)
-		self.uses_learning_phase = any([l.uses_learning_phase for l in self.model.layers])
+		self.uses_learning_phase = self._truth_tensor or any([l.uses_learning_phase for l in self.model.layers])
 		if len(self.model.layers) == 1:
 			if layer.input_spec is not None:
 				shape = layer.input_spec[0].shape
@@ -247,14 +248,18 @@ class RecurrentContainer(Layer):
 		for i in range(len(self.model.layers)):
 			layer = self.model.layers[i]
 			if self.readout and i == 0:
+				readout = states[-1]
+				if self._truth_tensor:
+					slices = [slice(None), states[-2]] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
+					readout = K.in_train_phase(self._truth_tensor[slices], readout)
 				if self.readout in ['add', True]:
-					x += states[-1]
+					x += readout
 				elif self.readout == 'mul':
-					x *= states[-1]
+					x *= readout
 				elif self.readout == 'pack':
-					x = K.pack([x, states[-1]])
+					x = K.pack([x, readout])
 				elif self.readout == 'readout_only':
-					x = states[-1]
+					x = readout
 			if _isRNN(layer):
 				if self.state_sync:
 					x, new_states = layer._step(x, states[:len(layer.states)])
@@ -268,6 +273,8 @@ class RecurrentContainer(Layer):
 		if self.decode:
 			states = [_x] + states
 		if self.readout:
+			if self._truth_tensor:
+				states[-2] += 1.
 			states[-1] = x
 		return x, states
 
@@ -308,11 +315,16 @@ class RecurrentContainer(Layer):
 			else:
 				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
 		self.updates = updates
+		states = list(states)
 		if self.stateful:
 			for i in range(len(states)):
 				self.updates.append((self.states[i], states[i]))
 		if self.decode:
-			states = states[1:]
+			states.pop(0)
+		if self.readout:
+			states.pop(-1)
+			if self._truth_tensor:
+				states.pop(-1)
 		self.state_outputs = states
 		if self.return_sequences:
 			return outputs
@@ -345,6 +357,8 @@ class RecurrentContainer(Layer):
 			else:
 				input = layer.call(input)
 		if self.readout:
+			if self._truth_tensor:
+				initial_states += [K.zeros((1,), dtype='int32')]
 			if hasattr(self, 'initial_readout'):
 				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
 				initial_states += [initial_readout]
@@ -379,6 +393,8 @@ class RecurrentContainer(Layer):
 		if self.readout:
 			shape = list(self.model.output_shape)
 			shape.pop(1)
+			if self._truth_tensor:
+				states += [K.zeros((1,), dtype='int32')]
 			states += [K.zeros(shape)]
 		self.states = states
 
@@ -436,6 +452,11 @@ class RecurrentContainer(Layer):
 	@regularizers.setter
 	def regularizers(self, value):
 		pass
+
+	def set_truth_tensor(self, val):
+		if val:
+			self.uses_learning_phase = True
+		self._truth_tensor = val
 
 	def get_config(self):
 		attribs = ['return_sequences', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll', 'output_length']
