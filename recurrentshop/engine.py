@@ -250,7 +250,7 @@ class RecurrentContainer(Layer):
 			if self.readout and i == 0:
 				readout = states[-1]
 				if self._truth_tensor:
-					slices = [slice(None), states[-2] - 1] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
+					slices = [slice(None), states[-2] - K.switch(states[-2], 1, 0)] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
 					readout = K.in_train_phase(K.switch(states[-2],self._truth_tensor[slices], readout), readout)
 				if self.readout in ['add', True]:
 					x += readout
