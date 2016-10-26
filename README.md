@@ -8,8 +8,9 @@ Ability to easily iterate over different neural network architectures is key to 
 * Initializing the hidden state of a RNN with the output of a previous layer.
 * Feeding back the output of the last layer of a RNN stack to the first layer in next time step (readout).
 * Decoders : RNNs who can look at the whole of the input sequence / vector at every time step.
+* Teacher forcing : Using the ground truth at time t-1 for predicting at time t during training.
 
-Recurrent shop adresses these issues by providing a set of *RNNCells*, which can be added sequentially to a special layer called *RecurrentContainer* along with other layers such as `Dropout` and `Activation`, very similar to adding layers to `Sequential` model in Keras. The `RecurrentContainer` then behaves like a standard Keras `Recurrent` instance. In case of RNN stacks, the computation is done depth-first, which results in significant speed ups.
+Recurrent shop adresses these issues by providing a set of *RNNCells*, which can be added sequentially to a special layer called *RecurrentContainer* along with other layers such as `Dropout` and `Activation`, very similar to adding layers to a `Sequential` model in Keras. The `RecurrentContainer` then behaves like a standard Keras `Recurrent` instance. In case of RNN stacks, the computation is done depth-first, which results in significant speed ups.
 
 Writing the RNN logic itself has been simplified to a great extend. The user is only required to provide the step function and the shapes for the weights and the states. Default initialization for weights is glorot uniform. States are initialized by zeros, unless specified otherwise.
 
@@ -102,6 +103,11 @@ rc.add(Activation('tanh'))
 rc = RecurrentContainer(decode=True, output_length=10)
 rc.add(SimpleRNNCell(10, input_dim=20))
 ```
+
+## Teacher forcing
+
+See (https://www.github.com/farizrahman4u/seq2seq)[Seq2Seq]
+
 
 ## LSTM and GRU
 
