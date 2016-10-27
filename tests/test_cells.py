@@ -6,7 +6,7 @@ from keras.layers import *
 from keras import backend as K
 from keras.utils.test_utils import keras_test
 
-def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
+def cell_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
                input_data=None, expected_output=None,
                expected_output_dtype=None, fixed_batch_size=False):
     '''Test routine for a layer with a single input tensor
@@ -24,7 +24,7 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
         expected_output_dtype = input_dtype
 
     # instantiation
-    layer = layer_cls(**kwargs)
+    layer = layer_cls(**kwargs).get_layer()
 
     # test get_weights , set_weights
     weights = layer.get_weights()
@@ -81,12 +81,12 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
 
 @keras_test
 def test_SimpleRNNCell():
-    layer_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
 
 @keras_test
 def test_GRUCell():
-    layer_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
 
 @keras_test
 def test_LSTMCell():
-    layer_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
