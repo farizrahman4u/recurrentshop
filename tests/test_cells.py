@@ -81,12 +81,12 @@ def cell_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
 
 @keras_test
 def test_SimpleRNNCell():
-    cell_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
 
 @keras_test
 def test_GRUCell():
-    cell_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
 
 @keras_test
 def test_LSTMCell():
-    cell_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 4))
+    cell_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
