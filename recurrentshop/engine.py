@@ -236,7 +236,7 @@ class RecurrentContainer(Layer):
 
 	def get_output_shape_for(self, input_shape):
 		# this is a container
-		return self.output_shape
+		return (input_shape[0],) + self.output_shape[1:]
 
 	def step(self, x, states):
 		states = list(states)

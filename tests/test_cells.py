@@ -33,7 +33,7 @@ def cell_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
     # test and instantiation from weights
     if 'weights' in inspect.getargspec(layer_cls.__init__):
         kwargs['weights'] = weights
-        layer = layer_cls(**kwargs)
+        layer = layer_cls(**kwargs).get_layer()
 
     # test in functional API
     if fixed_batch_size:
@@ -81,12 +81,12 @@ def cell_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
 
 @keras_test
 def test_SimpleRNNCell():
-    cell_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
+    cell_test(recurrentshop.SimpleRNNCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5), fixed_batch_size=True)
 
 @keras_test
 def test_GRUCell():
-    cell_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
+    cell_test(recurrentshop.GRUCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5), fixed_batch_size=True)
 
 @keras_test
 def test_LSTMCell():
-    cell_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5))
+    cell_test(recurrentshop.LSTMCell, kwargs={'output_dim':4, 'input_dim': 5}, input_shape=(10, 10, 5), fixed_batch_size=True)
