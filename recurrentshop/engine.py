@@ -180,7 +180,7 @@ class RecurrentContainer(Layer):
 		self.output_length = output_length
 		self.input_length = input_length
 		self.unroll = unroll
-		if unroll:
+		if unroll and not decode:
 			assert input_length, 'Missing argument: input_length should be specified for unrolling.'
 		self.supports_masking = True
 		self.model = Sequential()
@@ -250,8 +250,9 @@ class RecurrentContainer(Layer):
 			if self.readout and i == 0:
 				readout = states[-1]
 				if self._truth_tensor:
+					states[-2] = K.cast(states[-2], 'int32')
 					slices = [slice(None), states[-2] - K.switch(states[-2], 1, 0)] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
-					readout = K.in_train_phase(K.switch(states[-2],self._truth_tensor[slices], readout), readout)
+					readout = K.in_train_phase(K.switch(states[-2], self._truth_tensor[slices], readout), readout)
 				if self.readout in ['add', True]:
 					x += readout
 				elif self.readout == 'mul':
@@ -274,6 +275,7 @@ class RecurrentContainer(Layer):
 			states = [_x] + states
 		if self.readout:
 			if self._truth_tensor:
+				states[-2] = K.cast(states[-2], K.floatx())
 				states[-2] += 1
 			states[-1] = x
 		return x, states
@@ -358,7 +360,7 @@ class RecurrentContainer(Layer):
 				input = layer.call(input)
 		if self.readout:
 			if self._truth_tensor:
-				initial_states += [K.zeros((1,), dtype='int32')]
+				initial_states += [K.zeros((1,))]
 			if hasattr(self, 'initial_readout'):
 				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
 				initial_states += [initial_readout]
@@ -394,7 +396,7 @@ class RecurrentContainer(Layer):
 			shape = list(self.model.output_shape)
 			shape.pop(1)
 			if self._truth_tensor:
-				states += [K.zeros((1,), dtype='int32')]
+				states += [K.zeros((1,))]
 			states += [K.zeros(shape)]
 		self.states = states
 
