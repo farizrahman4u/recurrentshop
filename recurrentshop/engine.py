@@ -274,7 +274,7 @@ class RecurrentContainer(Layer):
 			states = [_x] + states
 		if self.readout:
 			if self._truth_tensor:
-				states[-2] += 1.
+				states[-2] += 1
 			states[-1] = x
 		return x, states
 
