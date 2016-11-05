@@ -519,7 +519,7 @@ class RecurrentContainer(Layer):
 		self.input_format = []
 		input_tensors = []
 		for i in range(3):
-			if x[i]:
+			if x[i] is not None:
 				self.input_format += [args[i]]
 				input_tensors += [x[i]]
 		if x[3]:
