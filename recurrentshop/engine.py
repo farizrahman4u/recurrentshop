@@ -256,7 +256,7 @@ class RecurrentContainer(Layer):
 			states = states[1:]
 		for i in range(len(self.model.layers)):
 			layer = self.model.layers[i]
-			if self.readout and i == 0:
+			if self.readout and ((i == 0 and self.readout != 'call') or (self.readout=='call' and hasattr(layer, 'receive_readout') and layer.receive_readout)):
 				readout = states[-1]
 				if self._truth_tensor:
 					slices = [slice(None), states[-2][0] - K.switch(states[-2][0], 1, 0)] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
@@ -269,6 +269,8 @@ class RecurrentContainer(Layer):
 					x = K.pack([x, readout])
 				elif self.readout == 'readout_only':
 					x = readout
+				elif self.readout == 'call':
+					x = [x, readout]
 			if _isRNN(layer):
 				if self.state_sync:
 					x, new_states = layer._step(x, states[:len(layer.states)])
