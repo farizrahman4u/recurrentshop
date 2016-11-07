@@ -447,12 +447,10 @@ class RecurrentContainer(Layer):
 			return info
 
 	def compute_mask(self, input, input_mask=None):
-		if type(input_mask) is list:
-			input_mask = input_mask[0]
-		if self.return_states:
-			return [input_mask] + [None] * self.nb_states
-		else:
-			return input_mask
+		mask = input_mask[0] if type(input_mask) is list else input_mask
+		mask = mask if self.return_sequences else None
+		mask = [mask] + [None] * self.nb_states if self.return_states else mask
+		return mask
 
 	@property
 	def trainable_weights(self):
@@ -598,4 +596,3 @@ class RecurrentContainer(Layer):
 	    		if _isRNN(layer):
 	    			return len(layer.states)
 	    return 0
-	
