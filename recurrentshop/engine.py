@@ -258,7 +258,7 @@ class RecurrentContainer(Layer):
 			layer = self.model.layers[i]
 			if self.readout and ((i == 0 and self.readout != 'call') or (self.readout=='call' and hasattr(layer, 'receive_readout') and layer.receive_readout)):
 				readout = states[-1]
-				if self._truth_tensor:
+				if self._truth_tensor is not None:
 					slices = [slice(None), states[-2][0] - K.switch(states[-2][0], 1, 0)] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
 					readout = K.in_train_phase(K.switch(states[-2][0], self._truth_tensor[slices], readout), readout)
 				if self.readout in ['add', True]:
@@ -284,7 +284,7 @@ class RecurrentContainer(Layer):
 		if self.decode:
 			states = [_x] + states
 		if self.readout:
-			if self._truth_tensor:
+			if self._truth_tensor is not None:
 				states[-2] += 1
 			states[-1] = x
 		return x, states
@@ -347,7 +347,7 @@ class RecurrentContainer(Layer):
 			states.pop(0)
 		if self.readout:
 			states.pop(-1)
-			if self._truth_tensor:
+			if self._truth_tensor is not None:
 				states.pop(-1)
 		if self.return_sequences:
 			y = outputs
@@ -384,7 +384,7 @@ class RecurrentContainer(Layer):
 			else:
 				input = layer.call(input)
 		if self.readout:
-			if self._truth_tensor:
+			if self._truth_tensor is not None:
 				initial_states += [K.zeros((1,), dtype='int32')]
 			if self.initial_readout:
 				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
@@ -420,7 +420,7 @@ class RecurrentContainer(Layer):
 		if self.readout:
 			shape = list(self.model.output_shape)
 			shape.pop(1)
-			if self._truth_tensor:
+			if self._truth_tensor is not None:
 				states += [K.zeros((1,), dtype='int32')]
 			states += [K.zeros(shape)]
 		self.states = states
@@ -487,7 +487,7 @@ class RecurrentContainer(Layer):
 		pass
 
 	def set_truth_tensor(self, val):
-		if val:
+		if val is not None:
 			self.uses_learning_phase = True
 		self._truth_tensor = val
 
@@ -522,12 +522,12 @@ class RecurrentContainer(Layer):
 			if x[i] is not None:
 				self.input_format += [args[i]]
 				input_tensors += [x[i]]
-		if x[3]:
+		if x[3] is not None:
 			self.input_format += [args[3]]
 			states = []
 			self.state_indices = []
 			for i in range(len(x[3])):
-				if x[3][i]:
+				if x[3][i] is not None:
 					states += [x[3][i]]
 					self.state_indices += [i]
 			input_tensors += states
@@ -540,7 +540,7 @@ class RecurrentContainer(Layer):
 					input_shapes.append(x_elem._keras_shape)
 				elif hasattr(K, 'int_shape'):
 					input_shapes.append(K.int_shape(x_elem))
-				elif x_elem:
+				elif x_elem is not None:
 					raise Exception('You tried to call layer "' + self.name +
 									'". This layer has no information'
 									' about its expected input shape, '
