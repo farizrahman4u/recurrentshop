@@ -300,7 +300,7 @@ class RecurrentContainer(Layer):
 				for i in range(len(states)):
 					self.set_state(self.state_indices[i], states[i])
 			x = x[0]
-		if not self.initial_readout and self.readout == 'readout_only':
+		if self.initial_readout is not None and self.readout == 'readout_only':
 			self.initial_readout = x
 		unroll = self.unroll
 		'''
@@ -386,7 +386,7 @@ class RecurrentContainer(Layer):
 		if self.readout:
 			if self._truth_tensor is not None:
 				initial_states += [K.zeros((1,), dtype='int32')]
-			if self.initial_readout:
+			if self.initial_readout is not None:
 				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
 				initial_states += [initial_readout]
 			else:
