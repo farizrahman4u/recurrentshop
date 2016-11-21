@@ -513,7 +513,7 @@ class RecurrentContainer(Layer):
 	def __call__(self, x, mask=None):
 		args = ['input', 'ground_truth', 'initial_readout', 'states']
 		if type(x) is dict:
-			x = map(x.get, args)
+			x = list(map(x.get, args))
 		elif type(x) not in [list, tuple]:
 			x = [x, None, None, None]
 		self.input_format = []
