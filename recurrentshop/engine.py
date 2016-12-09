@@ -506,6 +506,8 @@ class RecurrentContainer(Layer):
 		from . import cells
 		rc.model = Sequential()
 		for layer_config in model_config:
+			if 'config' in layer_config and 'name' in layer_config['config']:
+				del layer_config['config']['name']
 			layer = layer_from_config(layer_config, cells.__dict__)
 			rc.add(layer)
 		return rc
