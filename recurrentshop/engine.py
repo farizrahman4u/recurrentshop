@@ -587,8 +587,8 @@ class RecurrentContainer(Layer):
 					layer.states[index] = state
 					return
 				n += len(layer.states)
-				if index < n:
-					layer.states[index + len(layer.states) - n] = state
+				if index < len(layer.states):
+					layer.states[index - len(layer.states) + n] = state
 					return
 
 	@property
