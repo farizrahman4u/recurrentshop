@@ -19,12 +19,12 @@ depth = 3
 input_length = 1000
 dim = 10
 nb_epoch = 5
-unroll = False
+unroll = K.backend() == 'tensorflow'
 
 # Random data
 
-x = np.random.random((1000, input_length, dim))
-y = np.random.random((1000, dim))
+x = np.random.random((10, input_length, dim))
+y = np.random.random((10, dim))
 
 # Native keras model
 

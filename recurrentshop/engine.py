@@ -1,6 +1,6 @@
 from keras.layers import Layer, InputSpec
 from keras.models import Sequential
-from keras import initializations, regularizers
+from keras import initializations, regularizers, constraints
 from keras.utils.layer_utils import layer_from_config
 from keras import backend as K
 from inspect import getargspec
@@ -74,7 +74,7 @@ def _get_last_timestep(x):
 
 class weight(object):
 
-	def __init__(self, value, init='glorot_uniform', regularizer=None, trainable=True, name=None):
+	def __init__(self, value, init='glorot_uniform', regularizer=None, constraint=None, trainable=True, name=None):
 		if type(value) == int:
 			value = (value,)
 		if type(value) in [tuple, list]:
@@ -87,7 +87,10 @@ class weight(object):
 			self.value = value
 		if type(regularizer) == str:
 			regularizer = regularizers.get(regularizer)
+		if type(constraint) == str:
+			constraint = constants.get(constraint)
 		self.regularizer = regularizer
+		self.constraint = constraint
 		self.trainable = trainable
 
 
@@ -139,17 +142,18 @@ class RNNCell(Layer):
 	def weights(self, ws):
 		self.trainable_weights = []
 		self.non_trainable_weights = []
-		self.regularizers = []
+		self.constraints = {}
 		for w in ws:
 			if not isinstance(w, weight):
 				w = weight(w, name='{}_W'.format(self.name))
+			if w.regularizer is not None:
+				self.add_loss(regularizer(w.value))
+			if w.constraint is not None:
+				self.constraints[w.value] = w.constraint
 			if w.trainable:
 				self.trainable_weights += [w.value]
 			else:
 				self.non_trainable_weights += [w.value]
-			if w.regularizer:
-				w.regularizer.set_param(w.value)
-				self.regularizers += [w.regularizer]
 
 	def get_output_shape_for(self, input_shape):
 		if hasattr(self, 'output_dim'):
@@ -337,12 +341,13 @@ class RecurrentContainer(Layer):
 				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
 			else:
 				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
-		self.updates = updates
+		#self.add_update(updates, x)
 		states = list(states)
 		if self.stateful:
 			for i in range(len(states)):
 				if type(self.states[i]) == type(K.zeros((1,))):
-					self.updates.append((self.states[i], states[i]))
+					updates.append((self.states[i], states[i]))
+			self.add_update(updates, x)
 		if self.decode:
 			states.pop(0)
 		if self.readout:
@@ -475,16 +480,6 @@ class RecurrentContainer(Layer):
 	@property
 	def weights(self):
 		return self.model.weights
-
-	@property
-	def regularizers(self):
-		if not self.model.layers:
-			return []
-		return self.model.regularizers
-
-	@regularizers.setter
-	def regularizers(self, value):
-		pass
 
 	def set_truth_tensor(self, val):
 		if val is not None:
