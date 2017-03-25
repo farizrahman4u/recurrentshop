@@ -1,7 +1,7 @@
 from keras.layers import Layer, InputSpec
 from keras.models import Sequential
-from keras import initializations, regularizers, constraints
-from keras.utils.layer_utils import layer_from_config
+from keras import initializers, regularizers, constraints
+from keras.layers import deserialize
 from keras import backend as K
 from inspect import getargspec
 import numpy as np
@@ -79,7 +79,7 @@ class weight(object):
 			value = (value,)
 		if type(value) in [tuple, list]:
 			if type(init) == str:
-				init = initializations.get(init)
+				init = initializers.get(init)
 			self.value = init(value, name=name)
 		elif 'numpy' in str(type(value)):
 			self.value = K.variable(value, name=name)
@@ -503,7 +503,7 @@ class RecurrentContainer(Layer):
 		for layer_config in model_config:
 			if 'config' in layer_config and 'name' in layer_config['config']:
 				del layer_config['config']['name']
-			layer = layer_from_config(layer_config, cells.__dict__)
+			layer = deserialize(layer_config, cells.__dict__)
 			rc.add(layer)
 		return rc
 
@@ -561,7 +561,7 @@ class RecurrentContainer(Layer):
 				tensor_indices.append(tensor_index)
 			else:
 				inbound_layers = None
-				break	
+				break
 		if inbound_layers:
 			self.add_inbound_node(inbound_layers, node_indices, tensor_indices)
 			input_added = True
