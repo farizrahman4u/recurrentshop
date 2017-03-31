@@ -1,15 +1,16 @@
 from recurrentshop import RecurrentModel
+from keras.models import Model
 from keras.layers import *
 
 x = Input((5,))
 h_tm1 = Input((10,))
-h = add([Dense(10)(x), Dense(10, bias=False)(h_tm1)])
-h = Activation('tanh')
+h = add([Dense(10)(x), Dense(10, use_bias=False)(h_tm1)])
+h = Activation('tanh')(h)
 
 
 rnn = RecurrentModel(input=x, output=h, initial_states=h_tm1, final_states=h)
 
-a = Input((7, 10))
+a = Input((7, 5))
 b = rnn(a)
 
 model = Model(a, b)
