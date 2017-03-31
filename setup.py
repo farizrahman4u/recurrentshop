@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 
 setup(name='recurrentshop',
-      version='0.0.1',
+      version='1.0.0',
       description='Framework for building complex recurrent neural networks with Keras',
       author='Fariz Rahman',
       author_email='fariz@datalog.ai',

@@ -1,8 +1,19 @@
-# Required to make dropout work inside an RNN
-
-import theano
+from keras.backend import theano_backend as K
 import theano.tensor as T
-from keras.backend import expand_dims, zeros_like
+import theano
+
+
+class learning_phase_scope(object):
+
+	def __init__(self, value):
+		self.value = value
+
+	def __enter__(self):
+		self.learning_phase_placeholder = K.learning_phase()
+		K.set_learning_phase(self.value)
+
+	def __exit__(self, *args):
+		K._LEARNING_PHASE = self.learning_phase_placeholder
 
 
 def rnn(step_function, inputs, initial_states,
@@ -31,7 +42,7 @@ def rnn(step_function, inputs, initial_states,
         mask: binary tensor with shape (samples, time),
             with a zero for every element that is masked.
         constants: a list of constant values passed at each step.
-        unroll: whether to unroll the RNN or to use a symbolic loop (`scan`).
+        unroll: whether to unroll the RNN or to use a symbolic loop (`while_loop` or `scan` depending on backend).
         input_length: must be specified if using `unroll`.
 
     # Returns
@@ -173,4 +184,4 @@ def rnn(step_function, inputs, initial_states,
     axes = [1, 0] + list(range(2, outputs.ndim))
     outputs = outputs.dimshuffle(axes)
     states = [T.squeeze(state[-1]) for state in states]
-    return last_output, outputs, states, list(updates)
+    return last_output, outputs, states, updates

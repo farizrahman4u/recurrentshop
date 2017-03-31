@@ -1,595 +1,569 @@
-from keras.layers import Layer, InputSpec
-from keras.models import Sequential
-from keras import initializations, regularizers, constraints
-from keras.utils.layer_utils import layer_from_config
-from keras import backend as K
-from inspect import getargspec
-import numpy as np
-from . import backend
+from keras.layers import *
+from keras.models import Model
+from backend import rnn, learning_phase_scope
 
 
-'''Provides a simpler API for building complex recurrent neural networks using Keras.
 
-The RNN logic is written inside RNNCells, which are added sequentially to a RecurrentContainer.
-A RecurrentContainer behaves similar to a Recurrent layer in Keras, and accepts arguments like
-return_sequences, unroll, stateful, etc [See Keras Recurrent docstring]
-The .add() method of a RecurrentContainer is used to add RNNCells and other layers to it. Each
-element in the input sequence passes through the layers in the RecurrentContainer in the order
-in which they were added.
-'''
+def _to_list(x):
+    if type(x) is not list:
+        x = [x]
+    return x
 
+def _get_cells():
+    cells = {}
+    cells['SimpleRNNCell'] = SimpleRNNCell
+    cells['LSTMCell'] = LSTMCell
+    cells['GRUCell'] = GRUCell
+    return cells
 
-__author__ = "Fariz Rahman"
-__copyright__ = "Copyright 2016, datalog.ai"
-__credits__ = ["Fariz Rahman", "Malaikannan Sankarasubbu"]
-__license__ = "MIT"
-__version__ = "0.0.1"
-__maintainer__ = "Fariz Rahman"
-__email__ = "fariz@datalog.ai"
-__status__ = "Production"
-
-
-_backend = getattr(K, K.backend() + '_backend')
-
-
-class learning_phase(object):
-
-	def __init__(self, value):
-		self.value = value
-
-	def __enter__(self):
-		self.learning_phase_place_holder = _backend._LEARNING_PHASE
-		_backend._LEARNING_PHASE = self.value
-
-	def __exit__(self, *args):
-		_backend._LEARNING_PHASE = self.learning_phase_place_holder
-
-
-if K.backend() == 'theano':
-	rnn = backend.rnn
-else:
-	rnn = lambda *args, **kwargs: list(K.rnn(*args, **kwargs)) + [[]]
-
-
-def _isRNN(layer):
-	return issubclass(layer.__class__, RNNCell)
-
-def _get_first_timestep(x):
-	slices = [slice(None)] * K.ndim(x)
-	slices[1] = 0
-	return x[slices]
-
-def _get_last_timestep(x):
-	ndim = K.ndim(x)
-	if K.backend() == 'tensorflow':
-		import tensorflow as tf
-		slice_begin = tf.pack([0, tf.shape(x)[1] - 1] + [0] * (ndim - 2))
-		slice_size = tf.pack([-1, 1] + [-1] * (ndim - 2))
-		last_output = tf.slice(x, slice_begin, slice_size)
-		last_output = tf.squeeze(last_output, [1])
-		return last_output
-	else:
-		return x[:, -1]
-
-
-class weight(object):
-
-	def __init__(self, value, init='glorot_uniform', regularizer=None, constraint=None, trainable=True, name=None):
-		if type(value) == int:
-			value = (value,)
-		if type(value) in [tuple, list]:
-			if type(init) == str:
-				init = initializations.get(init)
-			self.value = init(value, name=name)
-		elif 'numpy' in str(type(value)):
-			self.value = K.variable(value, name=name)
-		else:
-			self.value = value
-		if type(regularizer) == str:
-			regularizer = regularizers.get(regularizer)
-		if type(constraint) == str:
-			constraint = constants.get(constraint)
-		self.regularizer = regularizer
-		self.constraint = constraint
-		self.trainable = trainable
+def _is_rnn_cell(cell):
+    return issubclass(cell.__class__, RNNCell)
 
 
 class RNNCell(Layer):
 
-	def __init__(self, **kwargs):
-		if 'input_dim' in kwargs:
-			kwargs['input_shape'] = (kwargs['input_dim'],)
-			del kwargs['input_dim']
-		if 'output_dim' in kwargs:
-			self.output_dim = kwargs['output_dim']
-			del kwargs['output_dim']
-		self.initial_states = {}
-		super(RNNCell, self).__init__(**kwargs)
+    def __init__(self, output_dim=None, **kwargs):
+        if 'input_shape' not in kwargs and 'input_dim' in kwargs:
+            kwargs['input_shape'] = (kwargs.pop('input_dim'),)
+        self.output_dim = output_dim
+        if 'batch_input_shape' in kwargs:
+            self.model = self.build_model(kwargs['batch_input_shape'])
+        elif 'input_shape' in kwargs:
+            self.model = self.build_model((None,) + kwargs['input_shape'])
+        super(RNNCell, self).__init__(**kwargs)
 
-	def _step(self, x, states):
-		args = [x, states]
-		if hasattr(self, 'weights'):
-			args += [self.weights]
-		if hasattr(self, 'constants'):
-			args += [self.constants]
-		args = args[:len(getargspec(self.step).args)]
-		return self.step(*args)
+    def build(self, input_shape):
+        if type(input_shape) is list:
+            self.input_spec = [InputSpec(shape=shape) for shape in input_shape]
+            self.model = self.build_model(input_shape[0])
+        else:
+            self.model = self.build_model(input_shape)
+            self.input_spec = [InputSpec(shape=shape) for shape in _to_list(self.model.input_shape)]
 
-	def call(self, x, mask=None):
-		input_ndim = K.ndim(x)
-		output_ndim = len(self.get_output_shape_for((10,) * input_ndim))
-		return K.zeros((10,) * output_ndim)
+    def build_model(self, input_shape):
+        raise Exception(NotImplemented)
 
-	def build(self, input_shape):
-		self.input_spec = [InputSpec(shape=input_shape)]
-		super(RNNCell, self).build(input_shape)
+    @property
+    def num_states(self):
+        model_input = self.model.input
+        if type(model_input) is list:
+            return len(model_input[1:])
+        else:
+            return 0
 
-	@property
-	def weights(self):
-		w = []
-		if hasattr(self, 'trainable_weights'):
-			w += self.trainable_weights
-		if hasattr(self, 'non_trainable_weights'):
-			w += self.non_trainable_weights
-		return w
+    @property
+    def state_shape(self):
+        model_input = self.model.input
+        if type(model_input) is list:
+            if len(model_input) == 2:
+                return K.int_shape(model_input[1])
+            else:
+                return map(K.int_shape, model_input[1:])
+        else:
+            return None
 
-	def get_layer(self, **kwargs):
-		rc = RecurrentContainer(**kwargs)
-		rc.add(self)
-		return rc
+    def compute_output_shape(self, input_shape):
+        model_inputs = self.model.input
+        if type(model_inputs) is list and type(input_shape) is not list:
+            input_shape = [input_shape] + map(K.int_shape, model.input[1:])
+        return self.model.compute_output_shape(input_shape)
 
-	@weights.setter
-	def weights(self, ws):
-		self.trainable_weights = []
-		self.non_trainable_weights = []
-		self.constraints = {}
-		for w in ws:
-			if not isinstance(w, weight):
-				w = weight(w, name='{}_W'.format(self.name))
-			if w.regularizer is not None:
-				self.add_loss(regularizer(w.value))
-			if w.constraint is not None:
-				self.constraints[w.value] = w.constraint
-			if w.trainable:
-				self.trainable_weights += [w.value]
-			else:
-				self.non_trainable_weights += [w.value]
+    def call(self, inputs, learning=None):
+        return self.model.call(inputs)
 
-	def get_output_shape_for(self, input_shape):
-		if hasattr(self, 'output_dim'):
-			return input_shape[:-1] + (self.output_dim,)
-		else:
-			return input_shape
+    def get_layer(self, **kwargs):
+        input_shape = self.model.input_shape
+        if type(input_shape) is list:
+            state_shapes = input_shape[1:]
+            input_shape = input_shape[0]
+        else:
+            state_shapes = []
+        input = Input(batch_shape=input_shape)
+        initial_states = [Input(batch_shape=shape) for shape in state_shapes]
+        output = self.model([input] + initial_states)
+        if type(output) is list:
+            final_states = output[1:]
+            output = output[0]
+        else:
+            final_states = []
+        return RecurrentModel(input=input, output=output, initial_states=initial_states, final_states=final_states, **kwargs)
 
-	def get_config(self):
-		config = {}
-		if hasattr(self, 'output_dim'):
-			config['output_dim'] = self.output_dim
-		base_config = super(RNNCell, self).get_config()
-		return dict(list(base_config.items()) + list(config.items()))
+    @property
+    def updates(self):
+        return self.model.updates
 
+    def add_update(self, updates, inputs=None):
+        self.model.add_update(updates, inputs)
+    
+    @property
+    def uses_learning_phase(self):
+        return self.model.uses_learning_phase
+    
+    @property
+    def _per_input_losses(self):
+        return getattr(self.model, '_per_input_losses', {})
 
-class RecurrentContainer(Layer):
+    @property
+    def losses(self):
+        return self.losses
+    
+    def add_loss(self, losses, inputs=None):
+        self.model.add_loss(losses, inputs)
 
-	def __init__(self, weights=None, return_sequences=False, return_states=False, go_backwards=False, stateful=False, readout=False, state_sync=False, decode=False, output_length=None, input_length=None, unroll=False, **kwargs):
-		self.return_sequences = return_sequences or decode
-		self.return_states = return_states
-		self.initial_weights = weights
-		self.go_backwards = go_backwards
-		self.stateful = stateful
-		self.readout = readout
-		self.state_sync = state_sync
-		self.decode = decode
-		if decode:
-			assert output_length, 'Missing argument: output_length should be specified for decoders.'
-		self.output_length = output_length
-		self.input_length = input_length
-		self.unroll = unroll
-		if unroll and not decode:
-			assert input_length, 'Missing argument: input_length should be specified for unrolling.'
-		self.supports_masking = True
-		self.model = Sequential()
-		self.supports_masking = True
-		self._truth_tensor = None
-		self.initial_readout = None
-		super(RecurrentContainer, self).__init__(**kwargs)
+    @property
+    def constraints(self):
+        return self.model.constraints
+    
+    @property
+    def trainable_weights(self):
+        return self.model.trainable_weights
 
-	def add(self, layer):
-		'''Add a layer
-		# Arguments:
-		layer: Layer instance. RNNCell or a normal layer such as Dense.
-		'''
-		self.model.add(layer)
-		self.uses_learning_phase = self._truth_tensor or any([l.uses_learning_phase for l in self.model.layers])
-		if len(self.model.layers) == 1:
-			if layer.input_spec is not None:
-				shape = layer.input_spec[0].shape
-			else:
-				shape = layer.input_shape
-			if not self.decode:
-				shape = (shape[0], self.input_length) + shape[1:]
-			self.batch_input_shape = shape
-			self.input_spec = [InputSpec(shape=shape)]
-		if _isRNN(layer) and self.state_sync:
-			if not hasattr(self, 'nb_states'):
-				self.nb_states = len(layer.states)
-			else:
-				assert len(layer.states) == self.nb_states, 'Incompatible layer. In a state synchronized recurrent container, all the cells should have the same number of states.'
-		if self.stateful:
-			self.reset_states()
+    @property
+    def non_trainable_weights(self):
+        return self.model.non_trainable_weights
+    
+    def get_losses_for(self, inputs):
+        return self.model.get_losses_for(inputs)
 
-	def pop(self):
-		'''Remove the last layer
-		'''
-		self.model.pop()
-		if self.stateful:
-			self.reset_states()
+    def get_updates_for(self, inputs):
+        return self.model.get_updates_for(inputs)
 
-	@property
-	def input_shape(self):
-		return self.input_spec[0].shape
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
 
-	@property
-	def output_shape(self):
-		shape = self.model.output_shape
-		if self.decode:
-			shape = (shape[0], self.output_length) + shape[1:]
-		elif self.return_sequences:
-			input_length = self.input_spec[0].shape[1]
-			shape = (shape[0], input_length) + shape[1:]
-		if self.return_states:
-			shape = [shape] + [None] * self.nb_states
-		return shape
+    def get_weights(self):
+        return self.model.get_weights()
 
-	def get_output_shape_for(self, input_shape):
-		if self.return_states:
-			output_shape = self.output_shape
-			state_shapes = output_shape[1:]
-			output_shape = output_shape[0]
-			output_shape = (input_shape[0],) + output_shape[1:]
-			return [output_shape] + state_shapes
-		else:
-			return (input_shape[0],) + self.output_shape[1:]
+    def get_config(self):
+        config = {'output_dim': self.output_dim}
+        base_config = super(RNNcell, self).get_config()
+        config.update(base_config)
+        return config
 
-	def step(self, x, states):
-		states = list(states)
-		state_index = 0
-		if self.decode:
-			x = states[0]
-			_x = x
-			states = states[1:]
-		for i in range(len(self.model.layers)):
-			layer = self.model.layers[i]
-			if self.readout and ((i == 0 and self.readout != 'call') or (self.readout=='call' and hasattr(layer, 'receive_readout') and layer.receive_readout)):
-				readout = states[-1]
-				if self._truth_tensor is not None:
-					slices = [slice(None), states[-2][0] - K.switch(states[-2][0], 1, 0)] + [slice(None)] * (K.ndim(self._truth_tensor) - 2)
-					readout = K.in_train_phase(K.switch(states[-2][0], self._truth_tensor[slices], readout), readout)
-				if self.readout in ['add', True]:
-					x += readout
-				elif self.readout == 'mul':
-					x *= readout
-				elif self.readout == 'pack':
-					x = K.pack([x, readout])
-				elif self.readout == 'readout_only':
-					x = readout
-				elif self.readout == 'call':
-					x = [x, readout]
-			if _isRNN(layer):
-				if self.state_sync:
-					x, new_states = layer._step(x, states[:len(layer.states)])
-					states[:len(layer.states)] = new_states
-				else:
-					x, new_states = layer._step(x, states[state_index : state_index + len(layer.states)])
-					states[state_index : state_index + len(layer.states)] = new_states
-					state_index += len(layer.states)
-			else:
-				x = layer.call(x)
-		if self.decode:
-			states = [_x] + states
-		if self.readout:
-			if self._truth_tensor is not None:
-				states[-2] += 1
-			states[-1] = x
-		return x, states
-
-	def call(self, x, mask=None):
-		if type(x) in [list, tuple]:
-			if 'ground_truth' in self.input_format:
-				self.set_truth_tensor(x[self.input_format.index('ground_truth')])
-			if 'initial_readout' in self.input_format:
-				self.initial_readout = x[self.input_format.index('initial_readout')]
-			if 'states' in self.input_format:
-				states = x[self.input_format.index('states'):]
-				for i in range(len(states)):
-					self.set_state(self.state_indices[i], states[i])
-			x = x[0]
-		if self.initial_readout is not None and self.readout == 'readout_only':
-			self.initial_readout = x
-		unroll = self.unroll
-		'''
-		if K.backend() == 'tensorflow':
-			cell_types = set([type(layer) for layer in self.model.layers if _isRNN(layer)])
-			if len(cell_types) > 1:
-				unroll = True
-		'''
-		input_shape = self.input_spec[0].shape
-		if self.stateful:
-			initial_states = self.states
-		else:
-			initial_states = self.get_initial_states(x)
-		if self.decode:
-			initial_states = [x] + initial_states
-			if self.uses_learning_phase:
-				with learning_phase(0):
-					last_output_0, outputs_0, states_0, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
-				with learning_phase(1):
-					last_output_1, outputs_1, states_1, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
-				outputs = K.in_train_phase(outputs_1, outputs_0)
-				last_output = _get_last_timestep(outputs)
-				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
-			else:
-				last_output, outputs, states, updates = rnn(self.step, K.zeros((1, self.output_length, 1)), initial_states, unroll=unroll, input_length=self.output_length)
-		else:
-			if self.uses_learning_phase:
-				with learning_phase(0):
-					last_output_0, outputs_0, states_0, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
-				with learning_phase(1):
-					last_output_1, outputs_1, states_1, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
-				outputs = K.in_train_phase(outputs_1, outputs_0)
-				last_output = _get_last_timestep(outputs)
-				states = [K.in_train_phase(states_1[i], states_0[i]) for i in range(len(states_0))]
-			else:
-				last_output, outputs, states, updates = rnn(self.step, x, initial_states, go_backwards=self.go_backwards, mask=mask, unroll=unroll, input_length=input_shape[1])
-		#self.add_update(updates, x)
-		states = list(states)
-		if self.stateful:
-			for i in range(len(states)):
-				if type(self.states[i]) == type(K.zeros((1,))):
-					updates.append((self.states[i], states[i]))
-			self.add_update(updates, x)
-		if self.decode:
-			states.pop(0)
-		if self.readout:
-			states.pop(-1)
-			if self._truth_tensor is not None:
-				states.pop(-1)
-		if self.return_sequences:
-			y = outputs
-		else:
-			y = last_output
-		if self.return_states:
-			y = [y] + states
-		return y
+    def compute_mask(self, inputs, mask=None):
+        model_output = self.model.output
+        if type(model_output) is list:
+            return [None] * len(model_output)
+        else:
+            return None
 
 
-	def get_initial_states(self, x):
-		initial_states = []
-		batch_size = self.input_spec[0].shape[0]
-		input_length = self.input_spec[0].shape[1]
-		if input_length is None:
-			input_length = K.shape(x)[1]
-		if batch_size is None:
-			batch_size = K.shape(x)[0]
-		if self.decode:
-			input = x
-		else:
-			input = _get_first_timestep(x)
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				layer_initial_states = []
-				for state in layer.states:
-					state = self._get_state_from_info(state, input, batch_size, input_length)
-					if type(state) != list:
-						state = [state]
-					layer_initial_states += state
-				if not self.state_sync or initial_states == []:
-					initial_states += layer_initial_states
-				input = layer._step(input, layer_initial_states)[0]
-			else:
-				input = layer.call(input)
-		if self.readout:
-			if self._truth_tensor is not None:
-				initial_states += [K.zeros((1,), dtype='int32')]
-			if self.initial_readout is not None:
-				initial_readout = self._get_state_from_info(self.initial_readout, input, batch_size, input_length)
-				initial_states += [initial_readout]
-			else:
-				initial_states += [K.zeros_like(input)]
-		return initial_states
+class RNNCellFromModel(RNNCell):
 
-	def reset_states(self):
-		batch_size = self.input_spec[0].shape[0]
-		input_length = self.input_spec[0].shape[1]
-		states = []
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				for state in layer.states:
-					#assert type(state) in [tuple, list] or 'numpy' in str(type(state)), 'Stateful RNNs require states with static shapes'
-					if 'numpy' in str(type(state)):
-						states += [K.variable(state)]
-					elif type(state) in [list, tuple]:
-						state = list(state)
-						for i in range(len(state)):
-							if state[i] in [-1, 'batch_size']:
-								assert type(batch_size) == int, 'Stateful RNNs require states with static shapes'
-								state[i] = batch_size
-							elif state[i] == 'input_length':
-								assert type(input_length) == int, 'Stateful RNNs require states with static shapes'
-								state[i] = input_length
-						states += [K.variable(np.zeros(state))]
-					else:
-						states += [state]
-				if self.state_sync:
-					break
-		if self.readout:
-			shape = list(self.model.output_shape)
-			shape.pop(1)
-			if self._truth_tensor is not None:
-				states += [K.zeros((1,), dtype='int32')]
-			states += [K.zeros(shape)]
-		self.states = states
+    def __init__(self, model, **kwargs):
+        self.model = model
+        super(RNNCellFromModel, self).__init__(batch_input_shape=model.input_shape, **kwargs)
+        self.input_spec = [Input(batch_shape=shape) for shape in _to_list(model.input_shape)]
+        self.build_model = lambda _: model
+
+    def get_config(self):
+        config = super(RNNCellFromModel, self).get_config()
+        config['model_config'] = self.model.get_config()
+        return config
+
+    def from_config(cls, config, custom_objects={}):
+        if type(custom_objects) is list:
+            custom_objects = {obj.__name__: obj for obj in custom_objects}
+        custom_objects.update(_get_cells())
+        model_config = config.pop('model_config')
+        model = Model.from_config(model_config, custom_objects)
+        return cls(model, **config)
 
 
-	def _get_state_from_info(self, info, input, batch_size, input_length):
-		if hasattr(info, '__call__'):
-			return info(input)
-		elif type(info) in [list, tuple]:
-			info = list(info)
-			for i in range(len(info)):
-				if info[i] in [-1, 'batch_size']:
-					info[i] = batch_size
-				elif info[i] == 'input_length':
-					info[i] = input_length
-			if K._BACKEND == 'theano':
-				from theano import tensor as k
-			else:
-				import tensorflow as k
-			return k.zeros(info)
-		elif 'numpy' in str(type(info)):
-			return K.variable(info)
-		else:
-			return info
+class RecurrentModel(Recurrent):
 
-	def compute_mask(self, input, input_mask=None):
-		mask = input_mask[0] if type(input_mask) is list else input_mask
-		mask = mask if self.return_sequences else None
-		mask = [mask] + [None] * self.nb_states if self.return_states else mask
-		return mask
+    def __init__(self, input, output, initial_states=None, final_states=None, **kwargs):
+        inputs = [input]
+        outputs = [output]
+        state_spec = None
+        if initial_states:
+            if type(initial_states) not in [list, tuple]:
+                initial_states = [initial_states]
+            state_spec = [InputSpec(shape=K.int_shape(state)) for state in initial_states]
+            if not final_states:
+                raise Exception('Missing argument : final_states')
+            else:
+                assert len(initial_states) == len(final_states), 'initial_states and final_states should have same number of tensors.'
+                self.states = [None] * len(initial_states)
+            inputs += initial_states
+        else:
+            self.states = [None] * len(initial_states)
+        if final_states:
+            if type(final_states) not in [list, tuple]:
+                final_states = [final_states]
+            if not initial_states:
+                raise Exception('Missing argument : initial_states')
+            outputs += final_states
+        self.model = Model(inputs, outputs)
+        super(RecurrentModel, self).__init__(**kwargs)
+        input_shape = list(K.int_shape(input))
+        input_shape.insert(1, None)
+        self.input_spec = InputSpec(shape=tuple(input_shape))
+        self.state_spec = state_spec
 
-	@property
-	def trainable_weights(self):
-		if not self.model.layers:
-			return []
-		return self.model.trainable_weights
+    def build(self, input_shape):
+        if type(input_shape) is list:
+            input_shape = input_shape[0]
+        input_length = input_shape[1]
+        if input_length is not None:
+            input_shape = list(self.input_spec.shape)
+            input_shape[1] = input_length
+            input_shape = tuple(input_shape)
+            self.input_spec = InputSpec(shape=input_shape)
+        if type(self.model.input) is list:
+            model_input_shape = self.model.input_shape[0]
+        else:
+            model_input_shape = self.model.input_shape
+        for i, j in zip(input_shape, model_input_shape):
+            if i is not None and j is not None and i != j:
+                raise Exception('Model expected input with shape ' + str(model_input_shape) +
+                    '. Received input with shape ' + str(input_shape))
+        if self.stateful:
+            self.reset_states()
 
-	@trainable_weights.setter
-	def trainable_weights(self, value):
-		pass
+    def step(self, inputs, states):
+        model_input = [inputs] + list(states)
+        for x in model_input:
+            if hasattr(x, '_keras_shape'):
+                del x._keras_shape  # Else keras internal will get messed up.
+        model_output = self.model.call(model_input)
+        if type(model_output) is list:
+            return model_output[0], model_output[1:]
+        else:
+            model_output._uses_learning_phase = uses_learning_phase
+            return model_output, []
 
-	@property
-	def non_trainable_weights(self):
-		if not self.model.layers:
-			return []
-		return self.model.non_trainable_weights
+    def get_initial_states(self, inputs):
+        if type(self.model.input) is not list:
+            return []
+        try:
+            batch_size = K.int_shape(inputs)[0]
+        except:
+            batch_size = None
+        state_shapes = map(K.int_shape, self.model.input[1:])
+        states = []
+        for shape in state_shapes:
+            if None in shape[1:]:
+                raise Exception('Only the batch dimension of a state can be left unspecified. Got state with shape ' + str(shape))
+            if shape[0] is None:
+                ndim = K.ndim(inputs)
+                z = K.zeros_like(inputs)
+                slices = [slice(None)] + [0] * (ndim - 1)
+                z = z[slices]  # (batch_size,)
+                state_ndim = len(shape)
+                z = K.reshape(z, (-1,) + (1,) * (state_ndim - 1))
+                z = K.tile(z, shape[1:])
+                states.append(z)
+            else:
+                states.append(K.zeros(shape))
+        return states
 
-	@non_trainable_weights.setter
-	def non_trainable_weights(self, value):
-		pass
+    def reset_states(self, states_value=None):
+        if len(self.states) == 0:
+            return
+        if not self.stateful:
+            raise AttributeError('Layer must be stateful.')
+        if not hasattr(self, 'states') or self.states[0] is None:
+            state_shapes = map(K.int_shape, self.model.input[1:])
+            self.states = map(K.zeros, state_shapes)
 
-	@property
-	def weights(self):
-		return self.model.weights
+        if states_value is not None:
+            if type(states_value) not in (list, tuple):
+                states_value = [states_value] * len(self.states)
+            assert len(states_value) == len(self.states), 'Your RNN has ' + str(len(self.states)) + ' states, but was provided ' + str(len(states_value)) + ' state values.'
+            if 'numpy' not in type(states_value[0]):
+                states_value = map(np.array, states_value)
+            if states_value[0].shape == tuple():
+                for state, val in zip(self.states, states_value):
+                    K.set_value(state, K.get_value(state) * 0. + val)
+            else:
+                for state, val in zip(self.states, states_value):
+                    K.set_value(state, val)
 
-	def set_truth_tensor(self, val):
-		if val is not None:
-			self.uses_learning_phase = True
-		self._truth_tensor = val
+    def call(self, inputs, mask=None, initial_state=None, training=None):
+        # input shape: `(samples, time (padded with zeros), input_dim)`
+        # note that the .build() method of subclasses MUST define
+        # self.input_spec and self.state_spec with complete input shapes.
+        if initial_state is not None:
+            if not isinstance(initial_state, (list, tuple)):
+                initial_states = [initial_state]
+            else:
+                initial_states = list(initial_state)
+        if isinstance(inputs, list):
+            initial_states = inputs[1:]
+            inputs = inputs[0]
+        elif self.stateful:
+            initial_states = self.states
+        else:
+            initial_states = self.get_initial_states(inputs)
 
-	def get_config(self):
-		attribs = ['return_sequences', 'return_states', 'go_backwards', 'stateful', 'readout', 'state_sync', 'decode', 'input_length', 'unroll', 'output_length']
-		config = {x : getattr(self, x) for x in attribs}
-		config['model'] = self.model.get_config()
-		base_config = super(RecurrentContainer, self).get_config()
-		return dict(list(base_config.items()) + list(config.items()))
+        if len(initial_states) != len(self.states):
+            raise ValueError('Layer has ' + str(len(self.states)) +
+                             ' states but was passed ' +
+                             str(len(initial_states)) +
+                             ' initial states.')
+        input_shape = K.int_shape(inputs)
+        if self.unroll and input_shape[1] is None:
+            raise ValueError('Cannot unroll a RNN if the '
+                             'time dimension is undefined. \n'
+                             '- If using a Sequential model, '
+                             'specify the time dimension by passing '
+                             'an `input_shape` or `batch_input_shape` '
+                             'argument to your first layer. If your '
+                             'first layer is an Embedding, you can '
+                             'also use the `input_length` argument.\n'
+                             '- If using the functional API, specify '
+                             'the time dimension by passing a `shape` '
+                             'or `batch_shape` argument to your Input layer.')
+        constants = self.get_constants(inputs, training=None)
+        preprocessed_input = self.preprocess_input(inputs, training=None)
+        if self.uses_learning_phase:
+            with learning_phase_scope(0):
+                last_output_test, outputs_test, states_test, updates = rnn(self.step,
+                                                 preprocessed_input,
+                                                 initial_states,
+                                                 go_backwards=self.go_backwards,
+                                                 mask=mask,
+                                                 constants=constants,
+                                                 unroll=self.unroll,
+                                                 input_length=input_shape[1])
+            with learning_phase_scope(1):
+                last_output_train, outputs_train, states_train, updates = rnn(self.step,
+                                                 preprocessed_input,
+                                                 initial_states,
+                                                 go_backwards=self.go_backwards,
+                                                 mask=mask,
+                                                 constants=constants,
+                                                 unroll=self.unroll,
+                                                 input_length=input_shape[1])
 
-	@classmethod
-	def from_config(cls, config):
-		model_config = config['model']
-		del config['model']
-		rc = cls(**config)
-		from . import cells
-		rc.model = Sequential()
-		for layer_config in model_config:
-			if 'config' in layer_config and 'name' in layer_config['config']:
-				del layer_config['config']['name']
-			layer = layer_from_config(layer_config, cells.__dict__)
-			rc.add(layer)
-		return rc
+            last_output = K.in_train_phase(last_output_train, last_output_test, training=training)
+            outputs = K.in_train_phase(outputs_train, outputs_test, training=training)
+            states = []
+            for state_train, state_test in zip(states_train, states_test):
+                states.append(K.in_train_phase(state_train, state_test, training=training))
 
-	def __call__(self, x, mask=None):
-		args = ['input', 'ground_truth', 'initial_readout', 'states']
-		if type(x) is dict:
-			x = list(map(x.get, args))
-		elif type(x) not in [list, tuple]:
-			x = [x, None, None, None]
-		self.input_format = []
-		input_tensors = []
-		for i in range(3):
-			if x[i] is not None:
-				self.input_format += [args[i]]
-				input_tensors += [x[i]]
-		if x[3] is not None:
-			self.input_format += [args[3]]
-			states = []
-			self.state_indices = []
-			for i in range(len(x[3])):
-				if x[3][i] is not None:
-					states += [x[3][i]]
-					self.state_indices += [i]
-			input_tensors += states
+        else:
+            last_output, outputs, states, updates = rnn(self.step,
+                                                 preprocessed_input,
+                                                 initial_states,
+                                                 go_backwards=self.go_backwards,
+                                                 mask=mask,
+                                                 constants=constants,
+                                                 unroll=self.unroll,
+                                                 input_length=input_shape[1])
+        if len(updates) > 0:
+            self.add_update(updates)
+        if self.stateful:
+            updates = []
+            for i in range(len(states)):
+                updates.append((self.states[i], states[i]))
+            self.add_update(updates, inputs)
 
-		if not self.built:
-			self.assert_input_compatibility(x)
-			input_shapes = []
-			for x_elem in input_tensors:
-				if hasattr(x_elem, '_keras_shape'):
-					input_shapes.append(x_elem._keras_shape)
-				elif hasattr(K, 'int_shape'):
-					input_shapes.append(K.int_shape(x_elem))
-				elif x_elem is not None:
-					raise Exception('You tried to call layer "' + self.name +
-									'". This layer has no information'
-									' about its expected input shape, '
-									'and thus cannot be built. '
-									'You can build it manually via: '
-									'`layer.build(batch_input_shape)`')
-			self.build(input_shapes[0])
-			self.built = True
-		self.assert_input_compatibility(x[0])
-		input_added = False
-		inbound_layers = []
-		node_indices = []
-		tensor_indices = []
-		self.ignore_indices = []
-		for i in range(len(input_tensors)):
-			input_tensor = input_tensors[i]
-			if hasattr(input_tensor, '_keras_history') and input_tensor._keras_history:
-				previous_layer, node_index, tensor_index = input_tensor._keras_history
-				inbound_layers.append(previous_layer)
-				node_indices.append(node_index)
-				tensor_indices.append(tensor_index)
-			else:
-				inbound_layers = None
-				break	
-		if inbound_layers:
-			self.add_inbound_node(inbound_layers, node_indices, tensor_indices)
-			input_added = True
-		if input_added:
-			outputs = self.inbound_nodes[-1].output_tensors
-			if len(outputs) == 1:
-				return outputs[0]
-			else:
-				return outputs
-		else:
-			return self.call(x, mask)
+        # Properly set learning phase
+        if 0 < self.dropout + self.recurrent_dropout:
+            last_output._uses_learning_phase = True
+            outputs._uses_learning_phase = True
 
-	def set_state(self, index, state):
-		n = 0
-		for layer in self.model.layers:
-			if _isRNN(layer):
-				if self.state_sync:
-					layer.states[index] = state
-					return
-				n += len(layer.states)
-				if index < n:
-					layer.states[index + len(layer.states) - n] = state
-					return
+        if self.return_sequences:
+            return outputs
+        else:
+            return last_output
 
-	@property
-	def nb_states(self):
-	    if self.state_sync:
-	    	for layer in self.model.layers:
-	    		if _isRNN(layer):
-	    			return len(layer.states)
-	    return 0
+    @property
+    def updates(self):
+        return self.model.updates
+
+
+    def add_update(self, updates, inputs=None):
+        self.model.add_update(updates, inputs)
+    
+    @property
+    def uses_learning_phase(self):
+        return self.model.uses_learning_phase
+    
+    @property
+    def _per_input_losses(self):
+        return getattr(self.model, '_per_input_losses', {})
+
+    @property
+    def losses(self):
+        return self.losses
+    
+    def add_loss(self, losses, inputs=None):
+        self.model.add_loss(losses, inputs)
+
+    @property
+    def constraints(self):
+        return self.model.constraints
+    
+    @property
+    def trainable_weights(self):
+        return self.model.trainable_weights
+
+    @property
+    def non_trainable_weights(self):
+        return self.model.non_trainable_weights
+    
+    def get_losses_for(self, inputs):
+        return self.model.get_losses_for(inputs)
+
+    def get_updates_for(self, inputs):
+        return self.model.get_updates_for(inputs)
+
+    def _remove_time_dim(self, shape):
+        return shape[:1] + shape[2:]
+
+    def compute_output_shape(self, input_shape):
+        if type(input_shape) is list:
+            input_shape[0] = self._remove_time_dim(input_shape[0])
+        if len(self.states) > 0 and type(input_shape) is not list:
+            input_shape = [self._remove_time_dim(input_shape)] + [K.int_shape(state) for state in self.model.input[1:]]
+        output_shape = self.model.compute_output_shape(input_shape)
+        if type(output_shape) is list:
+            output_shape = output_shape[0]
+        if self.return_sequences:
+            output_shape = output_shape[:1] + (self.input_spec.shape[1],) + output_shape[1:]
+        return output_shape
+
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def get_weights(self):
+        return self.model.get_weights()
+
+    def get_config(self):
+        config = {'model_config': self.model.get_config()}
+        base_config = super(RecurrentModel, self).get_config()
+        config.update(base_config)
+        return config
+
+    def from_config(cls, config, custom_objects={}):
+        if type(custom_objects) is list:
+            custom_objects = {obj.__name__: obj for obj in custom_objects}
+        custom_objects.update(_get_cells())
+        config = config.copy()
+        model_config = config.pop('model_config')
+        model = Model.from_config(model_config, custom_objects)
+        if type(model.input) is list:
+            input = model.input[0]
+            initial_states = model.input[1:]
+        else:
+            input = model.input
+            initial_states = None
+        if type(model.output) is list:
+            output = model.output[0]
+            final_states = model.output[1:]
+        else:
+            output  = model.output
+            final_states = None
+        return cls(input, output, initial_states, final_states, **config)
+
+    def get_cell(self, **kwargs):
+        return RNNCellFromModel(self.model, **kwargs)
+
+
+class RecurrentSequential(RecurrentModel):
+
+    def __init__(self, state_sync=False, **kwargs):
+        self.state_sync = state_sync
+        super(RecurrentModel, self).__init__(**kwargs)
+        self.cells = []
+
+    def add(self, cell):
+        self.cells.append(cell)
+        if len(self.cells) == 1:
+            cell_input_shape = cell.batch_input_shape
+            self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+
+    def build(self, input_shape):
+        if hasattr(self, 'model'):
+            del self.model
+        if self.state_sync:
+            if type(input_shape) is list:
+                x_shape = input_shape[0]
+                input_length = x_shape.pop(1)
+                if input_length is not None:
+                    shape = list(self.input_spec.shape)
+                    shape[1] = input_length
+                    self.input_spec = InputSpec(shape=tuple(shape))
+                input = Input(batch_shape=x_shape)
+                initial_states = [Input(batch_shape=shape) for shape in input_shape[1:]]
+            else:
+                input_length = input_shape[1]
+                if input_length is not None:
+                    shape = list(self.input_spec.shape)
+                    shape[1] = input_length
+                    self.input_spec = InputSpec(shape=tuple(shape))
+                input = Input(batch_shape=input_shape[:1] + input_shape[2:])
+                initial_states = []
+            output = input
+            final_states = initial_states[:]
+            for cell in self.cells:
+                if _is_rnn_cell(cell):
+                    if not initial_states:
+                        print output._keras_shape
+                        cell.build(K.int_shape(output))
+                        initial_states = [Input(batch_shape=shape) for shape in _to_list(cell.state_shape)]
+                        final_states = initial_states[:]
+                    cell_out = cell([output] + final_states)
+                    if type(cell_out) is not list:
+                        cell_out = [cell_out]
+                    output = cell_out[0]
+                    final_states = cell_out[1:]
+                else:
+                    output = cell(output)
+        else:
+            if type(input_shape) is list:
+                x_shape = input_shape[0]
+                input_length = x_shape.pop(1)
+                if input_length is not None:
+                    shape = list(self.input_spec.shape)
+                    shape[1] = input_length
+                    self.input_spec = InputSpec(shape=tuple(shape))
+                input = Input(batch_shape=x_shape)
+                initial_states = [Input(batch_shape=shape) for shape in input_shape[1:]]
+                output = input
+                final_states = []
+                for cell in self.cells:
+                    if _is_rnn_cell(cell):
+                        cell_initial_states = initial_states[len(final_states) : len(final_states) + cell.num_states]
+                        cell_in = [output] + cell_initial_states
+                        cell_out = _to_list(cell(cell_in))
+                        output = cell_out[0]
+                        final_states += cell_out[1:]
+                    else:
+                        output = cell(output)
+            else:
+                input_length = input_shape[1]
+                if input_length is not None:
+                    shape = list(self.input_spec.shape)
+                    shape[1] = input_length
+                    self.input_spec = InputSpec(shape=tuple(shape))
+                input = Input(batch_shape=input_shape[:1] + input_shape[2:])
+                output = input
+                initial_states = []
+                final_states = []
+                for cell in self.cells:
+                    if _is_rnn_cell(cell):
+                        cell.build(K.int_shape(output))
+                        state_inputs = [Input(batch_shape=shape) for shape in _to_list(cell.state_shape)]
+                        initial_states += state_inputs
+                        cell_in = [output] + state_inputs
+                        cell_out = _to_list(cell(cell_in))
+                        output = cell_out[0]
+                        final_states += cell_out[1:]
+                    else:
+                        output = cell(output)
+        self.model = Model([input] + initial_states, [output] + final_states)
+        self.states = [None] * len(initial_states)
+        super(RecurrentSequential, self).build(input_shape)
+
+    def get_config(self):
+        config = {'state_sync': self.state_sync}
+        base_config = super(RecurrentSequential, self).get_config()
+        config.update(base_config)
+        return config
+
+# Legacy
+RecurrentContainer = RecurrentSequential
