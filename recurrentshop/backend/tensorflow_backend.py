@@ -12,4 +12,4 @@ class learning_phase_scope(object):
 		K.set_learning_phase(self.value)
 
 	def __exit__(self, *args):
-		_GRAPH_LEARNING_PHASES[tf.get_default_graph()] = self.learning_phase_placeholder
+		K._GRAPH_LEARNING_PHASES[tf.get_default_graph()] = self.learning_phase_placeholder

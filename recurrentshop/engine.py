@@ -152,9 +152,9 @@ class RNNCellFromModel(RNNCell):
 
     def __init__(self, model, **kwargs):
         self.model = model
-        super(RNNCellFromModel, self).__init__(batch_input_shape=model.input_shape, **kwargs)
         self.input_spec = [Input(batch_shape=shape) for shape in _to_list(model.input_shape)]
         self.build_model = lambda _: model
+        super(RNNCellFromModel, self).__init__(batch_input_shape=model.input_shape, **kwargs)
 
     def get_config(self):
         config = super(RNNCellFromModel, self).get_config()
@@ -183,14 +183,14 @@ class RecurrentModel(Recurrent):
             if not final_states:
                 raise Exception('Missing argument : final_states')
             else:
-                assert len(initial_states) == len(final_states), 'initial_states and final_states should have same number of tensors.'
                 self.states = [None] * len(initial_states)
             inputs += initial_states
         else:
-            self.states = [None] * len(initial_states)
+            self.states = [None]
         if final_states:
             if type(final_states) not in [list, tuple]:
                 final_states = [final_states]
+            assert len(initial_states) == len(final_states), 'initial_states and final_states should have same number of tensors.'
             if not initial_states:
                 raise Exception('Missing argument : initial_states')
             outputs += final_states
@@ -214,6 +214,7 @@ class RecurrentModel(Recurrent):
             model_input_shape = self.model.input_shape[0]
         else:
             model_input_shape = self.model.input_shape
+        input_shape = input_shape[:1] + input_shape[2:]
         for i, j in zip(input_shape, model_input_shape):
             if i is not None and j is not None and i != j:
                 raise Exception('Model expected input with shape ' + str(model_input_shape) +
@@ -474,7 +475,10 @@ class RecurrentSequential(RecurrentModel):
         self.cells.append(cell)
         if len(self.cells) == 1:
             cell_input_shape = cell.batch_input_shape
+            if type(cell_input_shape) is list:
+                cell_input_shape = cell_input_shape[0]
             self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+            print self.input_spec.shape
 
     def build(self, input_shape):
         if hasattr(self, 'model'):
@@ -502,7 +506,6 @@ class RecurrentSequential(RecurrentModel):
             for cell in self.cells:
                 if _is_rnn_cell(cell):
                     if not initial_states:
-                        print output._keras_shape
                         cell.build(K.int_shape(output))
                         initial_states = [Input(batch_shape=shape) for shape in _to_list(cell.state_shape)]
                         final_states = initial_states[:]
