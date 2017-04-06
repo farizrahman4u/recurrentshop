@@ -1,7 +1,7 @@
 from keras.layers import *
 from keras.models import Model
 from backend import rnn, learning_phase_scope
-
+from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
 
 
 def _to_list(x):
@@ -10,11 +10,42 @@ def _to_list(x):
     return x
 
 
+
+
+class _OptionalInputPlaceHolder(Layer):
+
+    def __init__(self, name=None, **kwargs):
+        if not name:
+            prefix = 'optional_input_placeholder'
+            name = prefix + '_' + str(K.get_uid(prefix))
+        kwargs['batch_input_shape'] = (2,)
+        super(_OptionalInputPlaceHolder, self).__init__(**kwargs)
+        self.tensor = K.zeros(shape=(2,))
+        self.tensor._keras_shape = (2,)
+        self.tensor._uses_learning_phase = False
+        self.tensor._keras_history = (self, 0, 0)
+        Node(self,
+             inbound_layers=[],
+             node_indices=[],
+             tensor_indices=[],
+             input_tensors=[],
+             output_tensors=[self.tensor],
+             input_masks=[None],
+             output_masks=[None],
+             input_shapes=[],
+             output_shapes=[(2,)])
+
+    def call(self, inputs=None):
+        return self.tensor
+
+
+
 def _get_cells():
     cells = {}
     cells['SimpleRNNCell'] = SimpleRNNCell
     cells['LSTMCell'] = LSTMCell
     cells['GRUCell'] = GRUCell
+    cells['_OptionalInputPlaceHolder'] = _OptionalInputPlaceHolder
     return cells
 
 
@@ -31,24 +62,6 @@ def _is_all_none(iterable_or_element):
         if element is not None:
             return False
     return True
-
-
-def _collect_input_shape(input_tensors):
-    input_tensors = _to_list(input_tensors)
-    shapes = []
-    for x in input_tensors:
-        try:
-            shapes.append(K.int_shape(x))
-        except TypeError:
-            shapes.append(None)
-    if len(shapes) == 1:
-        return shapes[0]
-    return shapes
-
-
-_optional_key = '_optional'
-
-
 
 class RNNCell(Layer):
 
@@ -75,7 +88,11 @@ class RNNCell(Layer):
 
     @property
     def num_states(self):
-        model_input = self.model.input
+        if hasattr(self, 'model'):
+            model = self.model
+        else:
+            model = self.build_model((None, 2))  # Don't judge. It was 3 in the morning.
+        model_input = model.input
         if type(model_input) is list:
             return len(model_input[1:])
         else:
@@ -239,7 +256,7 @@ class RecurrentModel(Recurrent):
             self.states += [None]
         else:
             self.readout = False
-        if self.teacher_force and not self.readout:
+        if teacher_force and not self.readout:
             raise Exception('Readout should be enabled for teacher forcing.')
         self.teacher_force = teacher_force
         self.model = Model(inputs, outputs)
@@ -274,6 +291,7 @@ class RecurrentModel(Recurrent):
                     '. Received input with shape ' + str(input_shape))
         if self.stateful:
             self.reset_states()
+        self.built = True
 
     def step(self, inputs, states):
         if self.decode:
@@ -297,6 +315,15 @@ class RecurrentModel(Recurrent):
         if self.readout:
             states += [output]
         return output, states
+
+
+    @property
+    def num_states(self):
+        model_input = self.model.input
+        if type(model_input) is list:
+            return len(model_input[1:])
+        else:
+            return 0
 
     def get_initial_state(self, inputs):
         if type(self.model.input) is not list:
@@ -354,24 +381,30 @@ class RecurrentModel(Recurrent):
                     self._optional_input_placeholders[name] = self._get_optional_input_placeholder()
             return self._optional_input_placeholders[name]
         if num == 1:
-            optional_input_placeholder = Input(batch_shape=(None,))
+            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+            assert self._is_optional_input_placeholder(optional_input_placeholder)
             optional_input_placeholder.name += '_optional'
             return optional_input_placeholder
         else:
             y = []
             for _ in range(num):
-                optional_input_placeholder = Input(batch_shape=(None,))
+                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+                assert self._is_optional_input_placeholder(optional_input_placeholder)
                 optional_input_placeholder.name += '_optional'
                 y.append(optional_input_placeholder)
             return y            
 
 
     def _is_optional_input_placeholder(self, x):
-        return x.name[-9:] == '_optional'
+        if hasattr(x, '_keras_history'):
+            if isinstance(x._keras_history[0], _OptionalInputPlaceHolder):
+                return True
+        return False
 
 
 
     def __call__(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, **kwargs):
+        req_num_inputs = 1 + self.num_states
         inputs = _to_list(inputs)
         if len(inputs) == 1:
             if initial_state:
@@ -380,15 +413,19 @@ class RecurrentModel(Recurrent):
                 else:
                     inputs.append(initial_state)
             else:
-                initial_state = self._get_optional_input_placeholder('initial_state', len(self.state))
+                initial_state = self._get_optional_input_placeholder('initial_state', self.num_states)
                 inputs += _to_list(initial_state)
-            if not initial_readout:
-                initial_readout = self._get_optional_input_placeholder('initial_readout')
-            inputs.append(initial_readout)
-            if not ground_truth:
-                ground_truth = self._get_optional_input_placeholder('ground_truth')
-            inputs.append(ground_truth)
-        assert len(inputs) == len(self.states) + 3
+            if self.readout:
+                req_num_inputs += 1
+                if not initial_readout:
+                    initial_readout = self._get_optional_input_placeholder('initial_readout')
+                inputs.append(initial_readout)
+            if self.teacher_force:
+                req_num_inputs += 1
+                if not ground_truth:
+                    ground_truth = self._get_optional_input_placeholder('ground_truth')
+                inputs.append(ground_truth)
+        assert len(inputs) == req_num_inputs
         with K.name_scope(self.name):
             if not self.built:
                 self.build(K.int_shape(inputs[0]))
@@ -402,42 +439,58 @@ class RecurrentModel(Recurrent):
                     if 'mask' not in kwargs:
                         kwargs['mask'] = previous_mask
             input_shape = _collect_input_shape(inputs)
-            output = self.call(inputs, initial_states, initial_readout, ground_truth, **kwargs)
+            output = self.call(inputs, **kwargs)
             output_mask = self.compute_mask(inputs[0], previous_mask)
-
-            # Infering the output shape is only relevant for Theano.
             output_shape = self.compute_output_shape(input_shape[0])
-
             self._add_inbound_node(input_tensors=inputs, output_tensors=output,
                                    input_masks=previous_mask, output_masks=output_mask,
                                    input_shapes=input_shape, output_shapes=output_shape,
                                    arguments=kwargs)
-
-            # Apply activity regularizer if any:
             if hasattr(self, 'activity_regularizer') and self.activity_regularizer is not None:
                 regularization_losses = [self.activity_regularizer(x) for x in _to_list(output)]
                 self.add_loss(regularization_losses, _to_list(inputs))
         return output
 
 
-
-    def call(self, inputs, mask=None, initial_state=None, initial_readout=None, ground_truth=None, training=None):
+    def call(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, mask=None, training=None):
         # input shape: `(samples, time (padded with zeros), input_dim)`
         # note that the .build() method of subclasses MUST define
         # self.input_spec and self.state_spec with complete input shapes.
-        if initial_state is not None:
-            if not isinstance(initial_state, (list, tuple)):
-                initial_states = [initial_state]
-            else:
-                initial_states = list(initial_state)
-        if isinstance(inputs, list):
-            initial_states = inputs[1:]
-            inputs = inputs[0]
-        elif self.stateful:
-            initial_states = self.states
+        if type(inputs) is list:
+            inputs_list = inputs
+            inputs = inputs_list.pop(0)
+            initial_states = inputs_list[:len(self.states)]
+            if len(initial_states) > 0:
+                if self._is_optional_input_placeholder(initial_states[0]):
+                    initial_states = self.get_initial_state(inputs)
+            inputs_list = inputs_list[len(self.states):]
+            if self.readout:
+                initial_readout = inputs_list.pop(0)
+                if self.teacher_force:
+                    ground_truth = inputs_list.pop()
         else:
-            initial_states = self.get_initial_state(inputs)
+            if initial_state is not None:
+                if not isinstance(initial_state, (list, tuple)):
+                    initial_states = [initial_state]
+                else:
+                    initial_states = list(initial_state)
+                if self._is_optional_input_placeholder(initial_states[0]):
+                    initial_states = self.get_initial_state(inputs)
 
+            elif self.stateful:
+                initial_states = self.states
+            else:
+                initial_states = self.get_initial_state(inputs)
+        if self.readout:
+            if not initial_readout or self._is_optional_input_placeholder(initial_readout):
+                ndim = K.ndim(inputs)
+                initial_readout = K.zeros_like(inputs)
+                slices = [slice(None)] + [0] * (ndim - 1)
+                initial_readout = initial_readout[slices]  # (batch_size,)
+                output_ndim = len(K.int_shape(_to_list(model.output)[0]))
+                initial_readout = K.reshape(initial_readout, (-1,) + (1,) * (output_ndim - 1))
+                initial_readout = K.tile(initial_readout, (1,) + tuple(shape[1:]))
+                initial_states.append(initial_readout)
         if len(initial_states) != len(self.states):
             raise ValueError('Layer has ' + str(len(self.states)) +
                              ' states but was passed ' +
@@ -464,16 +517,6 @@ class RecurrentModel(Recurrent):
             input_length = self.output_length
         else:
             input_length = input_shape[1]
-        if self.readout:
-            if not initial_readout:
-                ndim = K.ndim(inputs)
-                initial_readout = K.zeros_like(inputs)
-                slices = [slice(None)] + [0] * (ndim - 1)
-                initial_readout = initial_readout[slices]  # (batch_size,)
-                output_ndim = K.int_shape(_to_list(model.output)[0])
-                initial_readout = K.reshape(initial_readout, (-1,) + (1,) * (output_ndim - 1))
-                initial_readout = K.tile(initial_readout, (1,) + tuple(shape[1:]))
-                initial_states.append(initial_readout)
         if self.uses_learning_phase:
             with learning_phase_scope(0):
                 last_output_test, outputs_test, states_test, updates = rnn(self.step,
@@ -660,7 +703,25 @@ class RecurrentSequential(RecurrentModel):
             kwargs['return_sequences'] = True
         self.return_states = return_states
         super(RecurrentModel, self).__init__(**kwargs)
+        self.readout = False
+        self.teacher_force = False
+        self._optional_input_placeholders = {}
 
+    @property
+    def num_states(self):
+        if hasattr(self, 'model'):
+            return super(RecurrentSequential, self).num_states
+        num = 0
+        for cell in self.cells:
+            if _is_rnn_cell(cell):
+                num += cell.num_states
+                if self.state_sync:
+                    break
+        if self.readout:
+            num += 1
+        return num
+
+    
     def add(self, cell):
         self.cells.append(cell)
         if len(self.cells) == 1:
@@ -671,6 +732,8 @@ class RecurrentSequential(RecurrentModel):
                 self.input_spec = InputSpec(shape=cell_input_shape)
             else:
                 self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+        if not self.stateful:
+            self.states = [None] * self.num_states
 
     def build(self, input_shape):
         if hasattr(self, 'model'):
