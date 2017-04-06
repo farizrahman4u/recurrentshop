@@ -21,7 +21,7 @@ model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
-model.predict(np.zeros((32, 7, 5)))
+model.predict(np.random.random((32, 7, 5)))
 
 
 rnn = RecurrentSequential(unroll=True)
@@ -36,7 +36,7 @@ model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
-model.predict(np.zeros((32, 7, 5)))
+model.predict(np.random.random((32, 7, 5)))
 
 
 rnn = RecurrentSequential(state_sync=True)
@@ -51,7 +51,7 @@ model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
-model.predict(np.zeros((32, 7, 5)))
+model.predict(np.random.random((32, 7, 5)))
 
 
 
@@ -67,4 +67,62 @@ model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
-model.predict(np.zeros((32, 7, 5)))
+model.predict(np.random.random((32, 7, 5)))
+
+
+# Decoders
+
+a = Input((5,))
+
+rnn = RecurrentSequential(decode=True, output_length=7)
+rnn.add(LSTMCell(10, input_dim=5))
+rnn.add(LSTMCell(10))
+rnn.add(LSTMCell(10))
+
+b = rnn(a)
+
+model = Model(a, b)
+
+model.compile(loss='mse', optimizer='sgd')
+model.fit((np.random.random((32, 5))), np.random.random((32, 7, 10)))
+model.predict(np.random.random((32, 5)))
+
+
+rnn = RecurrentSequential(state_sync=True, decode=True, output_length=7)
+rnn.add(LSTMCell(10, input_dim=5))
+rnn.add(LSTMCell(10))
+rnn.add(LSTMCell(10))
+
+b = rnn(a)
+
+model = Model(a, b)
+
+model.compile(loss='mse', optimizer='sgd')
+model.fit((np.random.random((32, 5))), np.random.random((32, 7, 10)))
+model.predict(np.random.random((32, 5)))
+
+rnn = RecurrentSequential(decode=True, output_length=7, unroll=True)
+rnn.add(LSTMCell(10, input_dim=5))
+rnn.add(LSTMCell(10))
+rnn.add(LSTMCell(10))
+
+b = rnn(a)
+
+model = Model(a, b)
+
+model.compile(loss='mse', optimizer='sgd')
+model.fit((np.random.random((32, 5))), np.random.random((32, 7, 10)))
+model.predict(np.random.random((32, 5)))
+
+rnn = RecurrentSequential(state_sync=True, decode=True, output_length=7, unroll=True)
+rnn.add(LSTMCell(10, input_dim=5))
+rnn.add(LSTMCell(10))
+rnn.add(LSTMCell(10))
+
+b = rnn(a)
+
+model = Model(a, b)
+
+model.compile(loss='mse', optimizer='sgd')
+model.fit((np.random.random((32, 5))), np.random.random((32, 7, 10)))
+model.predict(np.random.random((32, 5)))
