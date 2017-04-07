@@ -63,6 +63,7 @@ def _is_all_none(iterable_or_element):
             return False
     return True
 
+
 class RNNCell(Layer):
 
     def __init__(self, output_dim=None, **kwargs):

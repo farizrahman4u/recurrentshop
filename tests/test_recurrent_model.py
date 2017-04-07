@@ -9,7 +9,7 @@ h = Activation('tanh')(h)
 
 
 a = Input((7, 5))
-'''
+
 rnn = RecurrentModel(input=x, output=h, initial_states=h_tm1, final_states=h)
 b = rnn(a)
 model = Model(a, b)
@@ -18,7 +18,7 @@ model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
 model.predict(np.zeros((32, 7, 5)))
 
-'''
+
 rnn = RecurrentModel(input=x, output=h, initial_states=h_tm1, final_states=h, unroll=True)
 b = rnn(a)
 model = Model(a, b)
