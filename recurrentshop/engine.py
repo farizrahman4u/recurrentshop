@@ -318,7 +318,8 @@ class RecurrentModel(Recurrent):
             ground_truth = states.pop()
             assert K.ndim(ground_truth) == 3, K.ndim(ground_truth)
             counter = states.pop()
-            slices = [slice(None), K.cast(counter[0] - K.switch(counter[0], 1, 0), 'int32')] + [slice(None)] * (K.ndim(ground_truth) - 2)
+            zero = K.cast(K.zeros((1,))[0], 'int32')
+            slices = [slice(None), counter[0] - K.switch(counter[0], zero + 1, zero) + [slice(None)] * (K.ndim(ground_truth) - 2)
             ground_truth_slice = ground_truth[slices]
             s1 = K.switch(counter[0], ground_truth_slice, readout)
             readout =  K.in_train_phase(s1, readout)
@@ -500,7 +501,11 @@ class RecurrentModel(Recurrent):
             if self.teacher_force:
                 if ground_truth is None or self._is_optional_input_placeholder(ground_truth):
                     raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
-                initial_states.insert(-1, K.zeros((1,), dtype='int32'))
+                # counter = K.zeros((1,), dtype='int32') 
+                counter = K.zeros((1,))
+                counter = K.cast(counter, 'int32')
+                initial_states.insert(-1, counter)
+                initial_states[-2]
                 initial_states.insert(-1, ground_truth)
                 num_req_states += 2
         if len(initial_states) != num_req_states:
