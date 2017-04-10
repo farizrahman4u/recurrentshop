@@ -114,7 +114,7 @@ class RNNCell(Layer):
     def compute_output_shape(self, input_shape):
         model_inputs = self.model.input
         if type(model_inputs) is list and type(input_shape) is not list:
-            input_shape = [input_shape] + map(K.int_shape, model.input[1:])
+            input_shape = [input_shape] + list(map(K.int_shape, model.input[1:]))
         return self.model.compute_output_shape(input_shape)
 
     def call(self, inputs, learning=None):
@@ -364,7 +364,7 @@ class RecurrentModel(Recurrent):
             batch_size = K.int_shape(inputs)[0]
         except:
             batch_size = None
-        state_shapes = map(K.int_shape, self.model.input[1:])
+        state_shapes = list(map(K.int_shape, self.model.input[1:]))
         states = []
         if self.readout:
             state_shapes.pop()
@@ -391,15 +391,15 @@ class RecurrentModel(Recurrent):
         if not self.stateful:
             raise AttributeError('Layer must be stateful.')
         if not hasattr(self, 'states') or self.states[0] is None:
-            state_shapes = map(K.int_shape, self.model.input[1:])
-            self.states = map(K.zeros, state_shapes)
+            state_shapes = list(map(K.int_shape, self.model.input[1:]))
+            self.states = list(map(K.zeros, state_shapes))
 
         if states_value is not None:
             if type(states_value) not in (list, tuple):
                 states_value = [states_value] * len(self.states)
             assert len(states_value) == len(self.states), 'Your RNN has ' + str(len(self.states)) + ' states, but was provided ' + str(len(states_value)) + ' state values.'
             if 'numpy' not in type(states_value[0]):
-                states_value = map(np.array, states_value)
+                states_value = list(map(np.array, states_value))
             if states_value[0].shape == tuple():
                 for state, val in zip(self.states, states_value):
                     K.set_value(state, K.get_value(state) * 0. + val)
