@@ -295,10 +295,18 @@ class RecurrentModel(Recurrent):
         self.built = True
 
     def step(self, inputs, states):
+    	states = list(states)
+    	if self.teacher_force:
+    		readout = states.pop()
+    		ground_truth = states.pop()
+    		counter = states.pop()
+    		slices = [slice(None), counter[0] - K.switch(counter[0], 1, 0)] + [slice(None)] * (K.ndim(ground_truth) - 2)
+    		readout =  K.in_train_phase(K.switch(counter[0], ground_truth[slices], readout), readout)
+    		states.append(readout)
         if self.decode:
-            model_input = list(states)
+            model_input = states
         else:
-            model_input = [inputs] + list(states)
+            model_input = [inputs] + states
         shapes = []
         for x in model_input:
             if hasattr(x, '_keras_shape'):
@@ -315,6 +323,9 @@ class RecurrentModel(Recurrent):
         output = model_output[0]
         if self.readout:
             states += [output]
+            if self.teacher_force:
+            	states.insert(-2, counter + 1)
+            	states.insert(-2, ground_truth)
         return output, states
 
 
@@ -488,10 +499,16 @@ class RecurrentModel(Recurrent):
                 initial_readout = K.zeros_like(inputs)
                 slices = [slice(None)] + [0] * (ndim - 1)
                 initial_readout = initial_readout[slices]  # (batch_size,)
-                output_ndim = len(K.int_shape(_to_list(model.output)[0]))
+                output_shape = K.int_shape(_to_list(self.model.output)[0])
+                output_ndim = len(output_shape)
                 initial_readout = K.reshape(initial_readout, (-1,) + (1,) * (output_ndim - 1))
-                initial_readout = K.tile(initial_readout, (1,) + tuple(shape[1:]))
+                initial_readout = K.tile(initial_readout, (1,) + tuple(output_shape[1:]))
                 initial_states.append(initial_readout)
+            if self.teacher_force:
+            	if ground_truth	is None:
+            		raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
+            	initial_states.insert(-2, K.zeros((1,), dtype='int32'))
+            	initial_states.insert(-2, ground_truth)
         if len(initial_states) != len(self.states):
             raise ValueError('Layer has ' + str(len(self.states)) +
                              ' states but was passed ' +
@@ -510,8 +527,8 @@ class RecurrentModel(Recurrent):
                              '- If using the functional API, specify '
                              'the time dimension by passing a `shape` '
                              'or `batch_shape` argument to your Input layer.')
-        constants = self.get_constants(inputs, training=None)
         preprocessed_input = self.preprocess_input(inputs, training=None)
+        constants = self.get_constants(inputs, training=None)
         if self.decode:
             initial_states.insert(0, inputs)
             preprocessed_input = K.zeros((1, self.output_length, 1))
@@ -556,7 +573,9 @@ class RecurrentModel(Recurrent):
         if self.decode:
             states.pop(0)
         if self.readout:
-            states.pop(-1)
+            states.pop()
+            if self.teacher_force:
+            	states.pop()
         if len(updates) > 0:
             self.add_update(updates)
         if self.stateful:
@@ -589,7 +608,7 @@ class RecurrentModel(Recurrent):
     
     @property
     def uses_learning_phase(self):
-        return self.model.uses_learning_phase
+        return self.teacher_force or self.model.uses_learning_phase
     
     @property
     def _per_input_losses(self):
@@ -691,7 +710,7 @@ class RecurrentModel(Recurrent):
 
 class RecurrentSequential(RecurrentModel):
 
-    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, **kwargs):
+    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, readout=False, readout_activation='linear',teacher_force=False, **kwargs):
         self.state_sync = state_sync
         self.cells = []
         if decode and output_length is None:
@@ -704,8 +723,9 @@ class RecurrentSequential(RecurrentModel):
             kwargs['return_sequences'] = True
         self.return_states = return_states
         super(RecurrentModel, self).__init__(**kwargs)
-        self.readout = False
-        self.teacher_force = False
+        self.readout = readout
+        self.readout_activation = activations.get(readout_activation)
+        self.teacher_force = teacher_force
         self._optional_input_placeholders = {}
 
     @property
@@ -822,12 +842,33 @@ class RecurrentSequential(RecurrentModel):
                         final_states += cell_out[1:]
                     else:
                         output = cell(output)
+
         self.model = Model([input] + initial_states, [output] + final_states)
+        if self.readout:
+        	readout_input = Input(batch_shape=K.int_shape(output))
+        	if self.readout_activation.__name__ == 'linear':
+        		readout = Lambda(lambda x: x + 0., output_shape=lambda s: s)(readout_input)
+        	else:
+        		readout = Activation(self.readout_activation)(readout_input)
+        	input = Input(batch_shape=K.int_shape(input))
+        	if self.readout in [True, 'add']:
+        		input_readout_merged = add([input, readout])
+        	elif self.readout in ['mul', 'multiply']:
+        		input_readout_merged = multiply([input, readout])
+        	elif self.readout in ['avg', 'average']:
+        		input_readout_merged = average([input, readout])
+        	elif self.readout in ['max, maximum']:
+        		input_readout_merged = maximum([input, readout])
+        	initial_states = [Input(batch_shape=K.int_shape(s)) for s in initial_states]
+        	output = _to_list(self.model([input_readout_merged] + initial_states))
+        	final_states = output[1:]
+        	output = output[0]
+        	self.model = Model([input] + initial_states + [readout_input], [output] + final_states)
         self.states = [None] * len(initial_states)
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
-        config = {'state_sync': self.state_sync}
+        config = {'state_sync': self.state_sync, 'readout_activation': activations.serialize(self.readout_activation)}
         base_config = super(RecurrentSequential, self).get_config()
         config.update(base_config)
         return config

@@ -15,7 +15,7 @@ b = rnn(a)
 model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
-model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
+model.fit(np.random.random((32, 7, 5)), np.random.random((32, 10)))
 model.predict(np.zeros((32, 7, 5)))
 
 
@@ -24,7 +24,7 @@ b = rnn(a)
 model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
-model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
+model.fit(np.random.random((32, 7, 5)), np.random.random((32, 10)))
 model.predict(np.zeros((32, 7, 5)))
 
 a = Input((5,))
@@ -33,5 +33,5 @@ b = rnn(a)
 model = Model(a, b)
 
 model.compile(loss='mse', optimizer='sgd')
-model.fit((np.random.random((32, 5))), np.random.random((32, 7, 10)))
+model.fit(np.random.random((32, 5)), np.random.random((32, 7, 10)))
 model.predict(np.zeros((32, 5)))
