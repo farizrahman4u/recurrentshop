@@ -237,6 +237,9 @@ class RNNCellFromModel(RNNCell):
 
 class RecurrentModel(Recurrent):
 
+
+    # INITIALIZATION
+
     def __init__(self, input, output, initial_states=None, final_states=None, readout_input=None, teacher_force=False, decode=False, output_length=None, return_states=False, **kwargs):
         inputs = [input]
         outputs = [output]
@@ -311,44 +314,7 @@ class RecurrentModel(Recurrent):
             self.reset_states()
         self.built = True
 
-    def step(self, inputs, states):
-        states = list(states)
-        if self.teacher_force:
-            readout = states.pop()
-            ground_truth = states.pop()
-            assert K.ndim(ground_truth) == 3, K.ndim(ground_truth)
-            counter = states.pop()
-            zero = K.cast(K.zeros((1,))[0], 'int32')
-            one = K.cast(K.zeros((1,))[0], 'int32')
-            slices = [slice(None), counter[0] - K.switch(counter[0], one, zero)] + [slice(None)] * (K.ndim(ground_truth) - 2)
-            ground_truth_slice = ground_truth[slices]
-            readout = K.in_train_phase(K.switch(counter[0], ground_truth_slice, readout), readout)
-            states.append(readout)
-        if self.decode:
-            model_input = states
-        else:
-            model_input = [inputs] + states
-        shapes = []
-        for x in model_input:
-            if hasattr(x, '_keras_shape'):
-                shapes.append(x._keras_shape)
-                del x._keras_shape  # Else keras internals will get messed up.
-        model_output = _to_list(self.model.call(model_input))
-        for x, s in zip(model_input, shapes):
-            setattr(x, '_keras_shape', s)
-        if self.decode:
-            model_output.insert(1, model_input[0])
-        for tensor in model_output:
-            tensor._uses_learning_phase = self.uses_learning_phase
-        states = model_output[1:]
-        output = model_output[0]
-        if self.readout:
-            states += [output]
-            if self.teacher_force:
-                states.insert(-1, counter + 1)
-                states.insert(-1, ground_truth)
-        return output, states
-
+    # STATES
 
     @property
     def num_states(self):
@@ -407,6 +373,8 @@ class RecurrentModel(Recurrent):
             else:
                 for state, val in zip(self.states, states_value):
                     K.set_value(state, val)
+
+    # EXECUTION
 
     def __call__(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, **kwargs):
         req_num_inputs = 1 + self.num_states
@@ -599,6 +567,80 @@ class RecurrentModel(Recurrent):
         else:
             return y
 
+    def step(self, inputs, states):
+        states = list(states)
+        if self.teacher_force:
+            readout = states.pop()
+            ground_truth = states.pop()
+            assert K.ndim(ground_truth) == 3, K.ndim(ground_truth)
+            counter = states.pop()
+            zero = K.cast(K.zeros((1,))[0], 'int32')
+            one = K.cast(K.zeros((1,))[0], 'int32')
+            slices = [slice(None), counter[0] - K.switch(counter[0], one, zero)] + [slice(None)] * (K.ndim(ground_truth) - 2)
+            ground_truth_slice = ground_truth[slices]
+            readout = K.in_train_phase(K.switch(counter[0], ground_truth_slice, readout), readout)
+            states.append(readout)
+        if self.decode:
+            model_input = states
+        else:
+            model_input = [inputs] + states
+        shapes = []
+        for x in model_input:
+            if hasattr(x, '_keras_shape'):
+                shapes.append(x._keras_shape)
+                del x._keras_shape  # Else keras internals will get messed up.
+        model_output = _to_list(self.model.call(model_input))
+        for x, s in zip(model_input, shapes):
+            setattr(x, '_keras_shape', s)
+        if self.decode:
+            model_output.insert(1, model_input[0])
+        for tensor in model_output:
+            tensor._uses_learning_phase = self.uses_learning_phase
+        states = model_output[1:]
+        output = model_output[0]
+        if self.readout:
+            states += [output]
+            if self.teacher_force:
+                states.insert(-1, counter + 1)
+                states.insert(-1, ground_truth)
+        return output, states
+
+    # SHAPE, MASK, WEIGHTS
+
+    def compute_output_shape(self, input_shape):
+        if not self.decode:
+            if type(input_shape) is list:
+                input_shape[0] = self._remove_time_dim(input_shape[0])
+            else:
+                input_shape = self._remove_time_dim(input_shape)
+        if len(self.states) > 0 and (type(input_shape) is not list or len(input_shape) == 1):
+            input_shape = _to_list(input_shape) + [K.int_shape(state) for state in self.model.input[1:]]
+        output_shape = self.model.compute_output_shape(input_shape)
+        if type(output_shape) is list:
+            output_shape = output_shape[0]
+        if self.return_sequences:
+            if self.decode:
+                output_shape = output_shape[:1] + (self.output_length,) + output_shape[1:] 
+            else:
+                output_shape = output_shape[:1] + (self.input_spec.shape[1],) + output_shape[1:]
+        if self.return_states and len(self.states) > 0:
+            output_shape = [output_shape] + list(map(K.int_shape, self.model.output[1:]))
+        return output_shape
+
+    def compute_mask(self, input, input_mask=None):
+        mask = input_mask[0] if type(input_mask) is list else input_mask
+        mask = mask if self.return_sequences else None
+        mask = [mask] + [None] * len(self.states) if self.return_states else mask
+        return mask
+
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def get_weights(self):
+        return self.model.get_weights()
+
+    # LAYER ATTRIBS
+
     @property
     def updates(self):
         return self.model.updates
@@ -659,37 +701,7 @@ class RecurrentModel(Recurrent):
     def _remove_time_dim(self, shape):
         return shape[:1] + shape[2:]
 
-    def compute_output_shape(self, input_shape):
-        if not self.decode:
-            if type(input_shape) is list:
-                input_shape[0] = self._remove_time_dim(input_shape[0])
-            else:
-                input_shape = self._remove_time_dim(input_shape)
-        if len(self.states) > 0 and (type(input_shape) is not list or len(input_shape) == 1):
-            input_shape = _to_list(input_shape) + [K.int_shape(state) for state in self.model.input[1:]]
-        output_shape = self.model.compute_output_shape(input_shape)
-        if type(output_shape) is list:
-            output_shape = output_shape[0]
-        if self.return_sequences:
-            if self.decode:
-                output_shape = output_shape[:1] + (self.output_length,) + output_shape[1:] 
-            else:
-                output_shape = output_shape[:1] + (self.input_spec.shape[1],) + output_shape[1:]
-        if self.return_states and len(self.states) > 0:
-            output_shape = [output_shape] + list(map(K.int_shape, self.model.output[1:]))
-        return output_shape
-
-    def compute_mask(self, input, input_mask=None):
-        mask = input_mask[0] if type(input_mask) is list else input_mask
-        mask = mask if self.return_sequences else None
-        mask = [mask] + [None] * len(self.states) if self.return_states else mask
-        return mask
-
-    def set_weights(self, weights):
-        self.model.set_weights(weights)
-
-    def get_weights(self):
-        return self.model.get_weights()
+    # SERIALIZATION
 
     def get_config(self):
         config = {'model_config': self.model.get_config(),
