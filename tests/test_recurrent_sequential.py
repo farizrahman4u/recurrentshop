@@ -199,7 +199,6 @@ model.compile(loss='mse', optimizer='sgd')
 model.fit((np.random.random((32, 5))), np.random.random((32, 7, 5)))
 model.predict(np.random.random((32, 5)))
 
-
 # teacher forcing
 
 a = Input((7, 5))
