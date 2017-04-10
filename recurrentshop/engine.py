@@ -39,6 +39,12 @@ class _OptionalInputPlaceHolder(Layer):
         return self.tensor
 
 
+def _is_optional_input_placeholder(x):
+    if hasattr(x, '_keras_history'):
+        if isinstance(x._keras_history[0], _OptionalInputPlaceHolder):
+            return True
+    return False
+
 
 def _get_cells():
     cells = {}
@@ -295,14 +301,17 @@ class RecurrentModel(Recurrent):
         self.built = True
 
     def step(self, inputs, states):
-    	states = list(states)
-    	if self.teacher_force:
-    		readout = states.pop()
-    		ground_truth = states.pop()
-    		counter = states.pop()
-    		slices = [slice(None), counter[0] - K.switch(counter[0], 1, 0)] + [slice(None)] * (K.ndim(ground_truth) - 2)
-    		readout =  K.in_train_phase(K.switch(counter[0], ground_truth[slices], readout), readout)
-    		states.append(readout)
+        states = list(states)
+        if self.teacher_force:
+            readout = states.pop()
+            ground_truth = states.pop()
+            assert K.ndim(ground_truth) == 3, K.ndim(ground_truth)
+            counter = states.pop()
+            slices = [slice(None), K.cast(counter[0] - K.switch(counter[0], 1, 0), 'int32')] + [slice(None)] * (K.ndim(ground_truth) - 2)
+            ground_truth_slice = ground_truth[slices]
+            s1 = K.switch(counter[0], ground_truth_slice, readout)
+            readout =  K.in_train_phase(s1, readout)
+            states.append(readout)
         if self.decode:
             model_input = states
         else:
@@ -324,8 +333,8 @@ class RecurrentModel(Recurrent):
         if self.readout:
             states += [output]
             if self.teacher_force:
-            	states.insert(-2, counter + 1)
-            	states.insert(-2, ground_truth)
+                states.insert(-1, counter + 1)
+                states.insert(-1, ground_truth)
         return output, states
 
 
@@ -346,6 +355,9 @@ class RecurrentModel(Recurrent):
             batch_size = None
         state_shapes = map(K.int_shape, self.model.input[1:])
         states = []
+        if self.readout:
+            state_shapes.pop()
+            # default value for initial_readout is handled in call()
         for shape in state_shapes:
             if None in shape[1:]:
                 raise Exception('Only the batch dimension of a state can be left unspecified. Got state with shape ' + str(shape))
@@ -394,25 +406,17 @@ class RecurrentModel(Recurrent):
             return self._optional_input_placeholders[name]
         if num == 1:
             optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
-            assert self._is_optional_input_placeholder(optional_input_placeholder)
+            assert _is_optional_input_placeholder(optional_input_placeholder)
             optional_input_placeholder.name += '_optional'
             return optional_input_placeholder
         else:
             y = []
             for _ in range(num):
                 optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
-                assert self._is_optional_input_placeholder(optional_input_placeholder)
+                assert _is_optional_input_placeholder(optional_input_placeholder)
                 optional_input_placeholder.name += '_optional'
                 y.append(optional_input_placeholder)
-            return y            
-
-
-    def _is_optional_input_placeholder(self, x):
-        if hasattr(x, '_keras_history'):
-            if isinstance(x._keras_history[0], _OptionalInputPlaceHolder):
-                return True
-        return False
-
+            return y
 
 
     def __call__(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, **kwargs):
@@ -468,12 +472,13 @@ class RecurrentModel(Recurrent):
         # input shape: `(samples, time (padded with zeros), input_dim)`
         # note that the .build() method of subclasses MUST define
         # self.input_spec and self.state_spec with complete input shapes.
+        num_req_states = len(self.states)
         if type(inputs) is list:
             inputs_list = inputs
             inputs = inputs_list.pop(0)
             initial_states = inputs_list[:len(self.states)]
             if len(initial_states) > 0:
-                if self._is_optional_input_placeholder(initial_states[0]):
+                if _is_optional_input_placeholder(initial_states[0]):
                     initial_states = self.get_initial_state(inputs)
             inputs_list = inputs_list[len(self.states):]
             if self.readout:
@@ -486,7 +491,7 @@ class RecurrentModel(Recurrent):
                     initial_states = [initial_state]
                 else:
                     initial_states = list(initial_state)
-                if self._is_optional_input_placeholder(initial_states[0]):
+                if _is_optional_input_placeholder(initial_states[0]):
                     initial_states = self.get_initial_state(inputs)
 
             elif self.stateful:
@@ -494,22 +499,23 @@ class RecurrentModel(Recurrent):
             else:
                 initial_states = self.get_initial_state(inputs)
         if self.readout:
-            if not initial_readout or self._is_optional_input_placeholder(initial_readout):
-                ndim = K.ndim(inputs)
-                initial_readout = K.zeros_like(inputs)
-                slices = [slice(None)] + [0] * (ndim - 1)
-                initial_readout = initial_readout[slices]  # (batch_size,)
-                output_shape = K.int_shape(_to_list(self.model.output)[0])
+            if not initial_readout or _is_optional_input_placeholder(initial_readout):
+                output_shape = K.int_shape(_to_list((self.model.output))[0])
                 output_ndim = len(output_shape)
+                input_ndim = K.ndim(inputs)
+                initial_readout = K.zeros_like(inputs)
+                slices = [slice(None)] + [0] * (input_ndim - 1)
+                initial_readout = initial_readout[slices]  # (batch_size,)
                 initial_readout = K.reshape(initial_readout, (-1,) + (1,) * (output_ndim - 1))
                 initial_readout = K.tile(initial_readout, (1,) + tuple(output_shape[1:]))
-                initial_states.append(initial_readout)
+            initial_states.append(initial_readout)
             if self.teacher_force:
-            	if ground_truth	is None:
-            		raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
-            	initial_states.insert(-2, K.zeros((1,), dtype='int32'))
-            	initial_states.insert(-2, ground_truth)
-        if len(initial_states) != len(self.states):
+                if ground_truth is None or _is_optional_input_placeholder(ground_truth):
+                    raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
+                initial_states.insert(-1, K.zeros((1,), dtype='int32'))
+                initial_states.insert(-1, ground_truth)
+                num_req_states += 2
+        if len(initial_states) != num_req_states:
             raise ValueError('Layer has ' + str(len(self.states)) +
                              ' states but was passed ' +
                              str(len(initial_states)) +
@@ -575,7 +581,8 @@ class RecurrentModel(Recurrent):
         if self.readout:
             states.pop()
             if self.teacher_force:
-            	states.pop()
+                states.pop()
+                states.pop()
         if len(updates) > 0:
             self.add_update(updates)
         if self.stateful:
@@ -742,7 +749,6 @@ class RecurrentSequential(RecurrentModel):
             num += 1
         return num
 
-    
     def add(self, cell):
         self.cells.append(cell)
         if len(self.cells) == 1:
@@ -844,27 +850,28 @@ class RecurrentSequential(RecurrentModel):
                         output = cell(output)
 
         self.model = Model([input] + initial_states, [output] + final_states)
-        if self.readout:
-        	readout_input = Input(batch_shape=K.int_shape(output))
-        	if self.readout_activation.__name__ == 'linear':
-        		readout = Lambda(lambda x: x + 0., output_shape=lambda s: s)(readout_input)
-        	else:
-        		readout = Activation(self.readout_activation)(readout_input)
-        	input = Input(batch_shape=K.int_shape(input))
-        	if self.readout in [True, 'add']:
-        		input_readout_merged = add([input, readout])
-        	elif self.readout in ['mul', 'multiply']:
-        		input_readout_merged = multiply([input, readout])
-        	elif self.readout in ['avg', 'average']:
-        		input_readout_merged = average([input, readout])
-        	elif self.readout in ['max, maximum']:
-        		input_readout_merged = maximum([input, readout])
-        	initial_states = [Input(batch_shape=K.int_shape(s)) for s in initial_states]
-        	output = _to_list(self.model([input_readout_merged] + initial_states))
-        	final_states = output[1:]
-        	output = output[0]
-        	self.model = Model([input] + initial_states + [readout_input], [output] + final_states)
         self.states = [None] * len(initial_states)
+        if self.readout:
+            readout_input = Input(batch_shape=K.int_shape(output), name='readout_input')
+            if self.readout_activation.__name__ == 'linear':
+                readout = Lambda(lambda x: x + 0., output_shape=lambda s: s)(readout_input)
+            else:
+                readout = Activation(self.readout_activation)(readout_input)
+            input = Input(batch_shape=K.int_shape(input))
+            if self.readout in [True, 'add']:
+                input_readout_merged = add([input, readout])
+            elif self.readout in ['mul', 'multiply']:
+                input_readout_merged = multiply([input, readout])
+            elif self.readout in ['avg', 'average']:
+                input_readout_merged = average([input, readout])
+            elif self.readout in ['max, maximum']:
+                input_readout_merged = maximum([input, readout])
+            initial_states = [Input(batch_shape=K.int_shape(s)) for s in initial_states]
+            output = _to_list(self.model([input_readout_merged] + initial_states))
+            final_states = output[1:]
+            output = output[0]
+            self.model = Model([input] + initial_states + [readout_input], [output] + final_states)
+            self.states.append(None)
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
