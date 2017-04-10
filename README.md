@@ -46,7 +46,7 @@ y = rnn(x)
 
 model = Model(x, y)
 
-model.predict(np.random((7, 5)))
+model.predict(np.random.random((7, 5)))
 
 ```
 
