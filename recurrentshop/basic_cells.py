@@ -1,6 +1,6 @@
 from keras.models import Model
-from engine import RNNCell
 from keras.layers import *
+from .engine import RNNCell
 
 
 

@@ -1,9 +1,9 @@
 from keras.models import Model
-from engine import RNNCell
 from keras import initializers
 from keras import constraints
 from keras import regularizers
 from keras.layers import *
+from .engine import RNNCell
 
 
 
@@ -11,7 +11,7 @@ def _slice(x, dim, index):
     return x[:, index * dim : dim * (index + 1)]
 
 def get_slices(x, n):
-    dim = K.int_shape(x)[1] / n
+    dim = int(K.int_shape(x)[1] / n)
     return [Lambda(_slice, arguments={'dim': dim, 'index': i}, output_shape=lambda s: (s[0], dim))(x) for i in range(n)]
 
 
