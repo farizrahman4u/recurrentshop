@@ -34,7 +34,7 @@ h_t = Activation('tanh')(h_t)
 # Build the RNN
 rnn = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, output_states=[h_t])
 
-# rnn is a standard Keras `Recurrent` instance. It accepts arguments such as unroll, return_sequences etc
+# rnn is a standard Keras `Recurrent` instance. RecuurentModel also accepts arguments such as unroll, return_sequences etc
 
 # Run the RNN over a random sequence
 
@@ -78,6 +78,45 @@ rnn.add(Dense(5))
 rnn.add(GRU(8))
 
 # rnn can now be used as regular Keras Recurrent layer.
+```
+
+## Nesting RecurrentSequentials
+
+A `RecurrentSequential` (or any `RecurrentModel`)  can be converted to a cell using the `get_cell()` method. This cell can then be added to another `RecurrentSequential`.
+
+```python
+rnn1 = RecurrentSequential()
+rnn1.add(....)
+rnn1.add(....)
+
+rnn1_cell = rnn1.get_cell()
+
+rnn2 = RecurrentSequential()
+rnn2.add(rnn1_cell)
+rnn2.add(...)
+```
+
+## Using RNNCells in Functional API
+
+Since an `RNNCell` is a regular Keras layer by inheritance, it can be used for building `RecurrentModel`s using functional API.
+
+```python
+from recurrentshop import *
+fom keras.layers import *
+from keras.models import Model
+
+input = Input((5,))
+state1_tm1 = Input((10,))
+state2_tm1 = Input((10,))
+state3_tm1 = Input((10,))
+
+lstm_output, state1_t, state2_t = LSTMCell(10)([input, state1_tm1, state2_tm1])
+gru_output, state3_t = GRUCell(10)([input, state3_tm1])
+
+output = add([lstm_output, gru_output])
+output = Activation('tanh')(output)
+
+rnn = RecurrentModel(input=input, initial_states=[state1_tm1, state2_tm1, state3_tm1], output=output, final_states=[state1_t, state2_t, state3_t])
 ```
 
 
