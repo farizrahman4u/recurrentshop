@@ -13,10 +13,7 @@ Ability to easily iterate over different neural network architectures is key to 
 Recurrent shop adresses these issues by letting the user write RNNs of arbitrary complexity using Keras's functional API. In other words, the user builds a standard Keras model which defines the logic of the RNN for a single timestep, and RecurrentShop converts this model into a `Recurrent` instance, which is capable of processing sequences.
 
 
-
-------------------
-
-## Writing a Simple RNN
+## Writing a Simple RNN using Functional API
  
 ```python
 # The RNN logic is written using Keras's functional API.
@@ -24,7 +21,6 @@ Recurrent shop adresses these issues by letting the user write RNNs of arbitrary
 from keras.layers import *
 from keras.models import *
 from recurrentshop import *
-
 
 x_t = Input(5,)) # The input to the RNN at time t
 h_tm1 = Input((10,))  # Previous hidden state
@@ -35,6 +31,7 @@ h_t = add([Dense(10)(x_t), Dense(10, use_bias=False)(h_tm1)])
 # tanh activation
 h_t = Activation('tanh')(h_t)
 
+# Build the RNN
 rnn = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, output_states=[h_t])
 
 # rnn is a standard Keras `Recurrent` instance. It accepts arguments such as unroll, return_sequences etc
@@ -45,12 +42,44 @@ x = Input((7,5))
 y = rnn(x)
 
 model = Model(x, y)
-
 model.predict(np.random.random((7, 5)))
 
 ```
 
-# TODO : Rest of the documentation
+## RNNCells
+
+An `RNNCell` is a layer which defines the computation of an RNN for a single timestep. It takes a list of tensors as input (`[input, state1_tm1, state2_tm2..]`) and outputs a list of tensors (`[output, state1_t, state2_t...]`). An RNNCell does not iterate over an input sequence. It works on a single time step. So the shape of the input to an `LSTMCell` would be `(batch_size, input_dim)` rather than `(batch_size, input_length, input_dim)`
+
+RecurrentShop comes with 3 built-in RNNCells : `SimpleRNNCell`, `GRUCell`, and `LSTMCell`
+There are 2 versions of each of these cells. [The basic version which is more readable](recurrentshop/basic_cells.py) which you can refer to learn how to write custom RNNCells and the [customizable and recommended version](recurrentshop/cells.py) which has more options like setting regularizers, constraints, activations etc.
+
+An `RNNCell` can be easily converted to a Keras `Recurrent` layer:
+
+```python
+from recurrentshop.cells import LSTMCell
+
+lstm_cell = LSTMCell(10, input_dim=5)
+lstm_layer = lstm_cell.get_layer()
+
+# get_layer accepts arguments like return_sequences, unroll etc :
+lstm_layer = lstm_cell.get_layer(return_sequences=True, unroll=True)
+
+```
+
+## RecurrentSequential
+
+`RecurrentSequential` is the Recurrent analog for Keras's `Sequential` model. It lets you stack RNNCells and other layers such as `Dense` and `Activation` to build a Recurrent layer:
+
+```python
+rnn = RecurrentSequential(unroll=False, return_sequences=False)
+rnn.add(SimpleRNNCell(10, input_dim=5))
+rnn.add(LSTM(12))
+rnn.add(Dense(5))
+rnn.add(GRU(8))
+
+# rnn can now be used as regular Keras Recurrent layer.
+```
+
 
 
 # Installation
@@ -72,5 +101,4 @@ Create an issue, with a minimal script to reproduce the problem you are facing.
 # Have questions?
 
 Create an issue or drop me an email (fariz@datalog.ai).
-
 
