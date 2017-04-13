@@ -43,6 +43,7 @@ for cell in cells:
 y = lstms_output
 
 rnn = RecurrentModel(input=x, initial_states=[h_tm1, c_tm1], output=y, final_states=[h, c], readout_input=readout_input)
+
 ```
 
 
