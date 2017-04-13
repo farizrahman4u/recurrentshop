@@ -10,7 +10,8 @@ rnn.add(LSTMCell(10, input_dim=10))
 rnn.add(GRUCell(10))
 rnn.add(SimpleRNNCell(10))
 ```
-The output from the previous time step will be added to the current input. Other modes available are : `mul`, `avg`, `max`.
+The output from the previous time step will be added to the current input. Other modes available are : `mul`, `avg`, `max`. (Note : since these are elem-wise ops, output shape and input shape of the RNN should be the same.)
+
 
 ## Readout in RecurrentModel
 
