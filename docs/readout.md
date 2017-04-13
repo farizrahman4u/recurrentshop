@@ -27,13 +27,13 @@ readout_input = Input((10,))
 
 # Here, I simply add half the readout to the input.. you can do whatever you want.
 
-readout_half = Lambd(lambda x: 0.5 * x)
+readout_half = Lambda(lambda x: 0.5 * x)
 lstms_input = add([x, readout_half])
 
 # Deep LSTM
 depth = 3
 
-cells = [LSTM(10) for _ in range(depth)]
+cells = [LSTMCell(10) for _ in range(depth)]
 
 lstms_output, h, c = lstms_input, h_tm1, c_tm1
 
@@ -46,4 +46,3 @@ y = lstms_output
 rnn = RecurrentModel(input=x, initial_states=[h_tm1, c_tm1], output=y, final_states=[h, c], readout_input=readout_input)
 
 ```
-
