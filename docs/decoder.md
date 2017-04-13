@@ -13,6 +13,6 @@ rnn.add(SimpleRNNCell(25, input_dim=20))
 x = Input((20,))
 y = rnn(x)
 
-print(K.shape(y))  # >> (None, 10, 25)
+print(K.int_shape(y))  # >> (None, 10, 25)
 
 ```
