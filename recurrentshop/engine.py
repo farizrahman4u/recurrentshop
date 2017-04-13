@@ -401,6 +401,16 @@ class RecurrentModel(Recurrent):
             else:
                 for state, val in zip(self.states, states_value):
                     K.set_value(state, val)
+        else:
+            if self.state_initializer:
+                for state, init in zip(self.states, self.state_initializer):
+                    if isinstance(init, initializers.Zeros):
+                        K.set_value(state, 0 * K.get_value(state))
+                    else:
+                        K.set_value(state, K.eval(init(K.get_value(state).shape)))
+            else:
+                for state in self.states:
+                    K.set_value(state, 0 * K.get_value(state))
 
     # EXECUTION
 
