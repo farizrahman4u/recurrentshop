@@ -31,7 +31,7 @@ Here each state gets a different initializer. Note that we have specified the ba
 
 rnn = RecurrentSequential(state_initializer=['random_normal', 'zeros', 'glorot_uniform'])
 rnn.add(LSTMCell(10, batch_input_shape=(32, 10))
-rnn.add(GRUCell(10]))
+rnn.add(GRUCell(10))
 
 ```
 
