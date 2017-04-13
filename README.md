@@ -8,7 +8,9 @@ Ability to easily iterate over different neural network architectures is key to 
 * Feeding back the output of the last layer of a RNN stack to the first layer in next time step (readout).
 * Decoders : RNNs who can look at the whole of the input sequence / vector at every time step.
 * Teacher forcing : Using the ground truth at time t-1 for predicting at time t during training.
-* Nested RNNs
+* Nested RNNs.
+* Initializing states with different distributions.
+
 
 Recurrent shop adresses these issues by letting the user write RNNs of arbitrary complexity using Keras's functional API. In other words, the user builds a standard Keras model which defines the logic of the RNN for a single timestep, and RecurrentShop converts this model into a `Recurrent` instance, which is capable of processing sequences.
 
@@ -119,6 +121,8 @@ output = Activation('tanh')(output)
 rnn = RecurrentModel(input=input, initial_states=[state1_tm1, state2_tm1, state3_tm1], output=output, final_states=[state1_t, state2_t, state3_t])
 ```
 
+
+See docs/ directory for more features.
 
 
 # Installation
