@@ -46,4 +46,3 @@ rnn = RecurrentModel(input=x, initial_states=[h_tm1, c_tm1], output=y, final_sta
 
 ```
 
-
