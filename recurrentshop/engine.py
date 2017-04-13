@@ -1,5 +1,6 @@
 from keras.layers import *
 from keras.models import Model
+from keras import initializers
 from .backend import rnn, learning_phase_scope
 from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
 
@@ -240,7 +241,7 @@ class RecurrentModel(Recurrent):
 
     # INITIALIZATION
 
-    def __init__(self, input, output, initial_states=None, final_states=None, readout_input=None, teacher_force=False, decode=False, output_length=None, return_states=False, **kwargs):
+    def __init__(self, input, output, initial_states=None, final_states=None, readout_input=None, teacher_force=False, decode=False, output_length=None, return_states=False, state_initializer=None, **kwargs):
         inputs = [input]
         outputs = [output]
         state_spec = None
@@ -288,6 +289,13 @@ class RecurrentModel(Recurrent):
         self.input_spec = InputSpec(shape=tuple(input_shape))
         self.state_spec = state_spec
         self._optional_input_placeholders = {}
+        if state_initializer:
+            if type(state_initializer) not in [list, tuple]:
+                state_initializer = [state_initializer] * self.num_states
+            else:
+                state_initializer += [None] * (self.num_states - len(state_initializer))
+            state_initializer = [initializers.get(init) if init else initializers.get('zeros') for init in state_initializer]
+        self.state_initializer = state_initializer
 
 
     def build(self, input_shape):
@@ -350,6 +358,12 @@ class RecurrentModel(Recurrent):
                 states.append(z)
             else:
                 states.append(K.zeros(shape))
+        state_initializer  = self.state_initializer
+        if state_initializer:
+            num_state_init = len(state_initializer)
+            num_state = self.num_states
+            assert num_state_init == num_state, 'RNN has ' + str(num_state) + ' states, but was provided ' + str(num_state_init) + ' state initializers.'
+            states = [init(K.shape(state)) for state, init in zip(states, state_initializer)]
         return states
 
     def reset_states(self, states_value=None):
@@ -703,11 +717,22 @@ class RecurrentModel(Recurrent):
 
     # SERIALIZATION
 
+
+    def _sertialize_state_initialzer(self):
+        si = self.state_initializer
+        if si is None:
+            return None
+        elif type(si) is list:
+            return list(map(initializers.serialize, si))
+        else:
+            return initializers.serialize(si)
     def get_config(self):
         config = {'model_config': self.model.get_config(),
                   'decode': self.decode,
                   'output_length': self.output_length,
-                  'return_states': self.return_states}
+                  'return_states': self.return_states,
+                  'state_initializer' : self._sertialize_state_initialzer()
+                  }
         base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
         return config
@@ -765,7 +790,7 @@ class RecurrentModel(Recurrent):
 
 class RecurrentSequential(RecurrentModel):
 
-    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, readout=False, readout_activation='linear',teacher_force=False, **kwargs):
+    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, readout=False, readout_activation='linear',teacher_force=False, state_initializer=None, **kwargs):
         self.state_sync = state_sync
         self.cells = []
         if decode and output_length is None:
@@ -782,6 +807,24 @@ class RecurrentSequential(RecurrentModel):
         self.readout_activation = activations.get(readout_activation)
         self.teacher_force = teacher_force
         self._optional_input_placeholders = {}
+        if state_initializer:
+            if type(state_initializer) in [list, tuple]:
+                state_initializer = [initiliazers.get(init) if init else initializers.get('zeros') for init in state_initializer]
+        self._state_initializer = state_initializer
+
+
+    @property
+    def state_initializer(self):
+        if self._state_initializer is None:
+            return None
+        elif type(state_initializer) is list:
+            return self._state_initializer + [initializer.get('zeros')] * (self.num_states - len(self._state_initializer))
+        else:
+            return [self._state_initializer] * self.num_states
+
+    @state_initializer.setter
+    def state_initializer(self, value):
+        self._state_initializer = value
 
     @property
     def num_states(self):
