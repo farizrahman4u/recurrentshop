@@ -810,6 +810,8 @@ class RecurrentSequential(RecurrentModel):
         if state_initializer:
             if type(state_initializer) in [list, tuple]:
                 state_initializer = [initiliazers.get(init) if init else initializers.get('zeros') for init in state_initializer]
+            else:
+                state_initializer = initializers.get(state_initializer)
         self._state_initializer = state_initializer
 
 
