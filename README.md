@@ -121,6 +121,7 @@ output = Activation('tanh')(output)
 rnn = RecurrentModel(input=input, initial_states=[state1_tm1, state2_tm1, state3_tm1], output=output, final_states=[state1_t, state2_t, state3_t])
 ```
 
+# More features
 
 See docs/ directory for more features.
 
