@@ -16,7 +16,7 @@ print(rnn.num_states)  # >> 3
 * Total : 3
 
 Now with state sync you can have a common state space for all the cells in a `RecurrentSequential`.
-For this, all `RNNCell`s in the `RecurrentContainer` should be state homogeneous, i.e, the should all have the same number of states and corresponding states should have same shapes. Which means you can not have both `LSTMCell` and `GRUCell` in a state synced `RecurrentSequential` because `LSTMCell`s have 2 states wheareas `GRUCell`s have only 1 state.
+For this, all `RNNCell`s in the `RecurrentContainer` should be state homogeneous, i.e, they should all have the same number of states and corresponding states should have same shapes. Which means you can not have both `LSTMCell` and `GRUCell` in a state synced `RecurrentSequential` because `LSTMCell`s have 2 states wheareas `GRUCell`s have only 1 state.
 
 ```python
 rnn = RecurrentSequential(state_sync=True)

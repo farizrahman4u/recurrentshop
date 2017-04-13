@@ -48,7 +48,7 @@ model.predict(np.random.random((7, 5)))
 
 ## RNNCells
 
-An `RNNCell` is a layer which defines the computation of an RNN for a single timestep. It takes a list of tensors as input (`[input, state1_tm1, state2_tm2..]`) and outputs a list of tensors (`[output, state1_t, state2_t...]`). An RNNCell does not iterate over an input sequence. It works on a single time step. So the shape of the input to an `LSTMCell` would be `(batch_size, input_dim)` rather than `(batch_size, input_length, input_dim)`
+An `RNNCell` is a layer which defines the computation of an RNN for a single timestep. It takes a list of tensors as input (`[input, state1_tm1, state2_tm1..]`) and outputs a list of tensors (`[output, state1_t, state2_t...]`). An RNNCell does not iterate over an input sequence. It works on a single time step. So the shape of the input to an `LSTMCell` would be `(batch_size, input_dim)` rather than `(batch_size, input_length, input_dim)`
 
 RecurrentShop comes with 3 built-in RNNCells : `SimpleRNNCell`, `GRUCell`, and `LSTMCell`
 There are 2 versions of each of these cells. [The basic version which is more readable](recurrentshop/basic_cells.py) which you can refer to learn how to write custom RNNCells and the [customizable and recommended version](recurrentshop/cells.py) which has more options like setting regularizers, constraints, activations etc.
