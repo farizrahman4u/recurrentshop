@@ -374,7 +374,8 @@ class RecurrentModel(Recurrent):
                 init = state_initializer[i]
                 shape = state_shapes[i]
                 try:
-                    states[i] = init(shape)
+                    if not isinstance(init, initializers.Zeros):
+                        states[i] = init(shape)
                 except:
                     raise Exception('Seems the initializer ' + init.__class__.__name__ + ' does not support symbolic shapes(' + str(shape) + '). Try providing the full input shape (include batch dimension) for you RecurrentModel.')
         return states
