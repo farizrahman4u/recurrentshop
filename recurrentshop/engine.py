@@ -817,7 +817,7 @@ class RecurrentSequential(RecurrentModel):
     def state_initializer(self):
         if self._state_initializer is None:
             return None
-        elif type(state_initializer) is list:
+        elif type(self._state_initializer) is list:
             return self._state_initializer + [initializer.get('zeros')] * (self.num_states - len(self._state_initializer))
         else:
             return [self._state_initializer] * self.num_states
