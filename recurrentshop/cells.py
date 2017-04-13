@@ -15,6 +15,11 @@ def get_slices(x, n):
     return [Lambda(_slice, arguments={'dim': dim, 'index': i}, output_shape=lambda s: (s[0], dim))(x) for i in range(n)]
 
 
+class Identity(Layer):
+
+    def call(self, x):
+      return x + 0.
+
 
 class ExtendedRNNCell(RNNCell):
 
@@ -93,7 +98,7 @@ class SimpleRNNCell(ExtendedRNNCell):
                                 use_bias=False)
         h = add([kernel(x), recurrent_kernel(h_tm1)])
         h = Activation(self.activation)(h)
-        return Model([x, h_tm1], [h, h])
+        return Model([x, h_tm1], [h, Identity()(h)])
 
 
 class GRUCell(ExtendedRNNCell):
@@ -133,7 +138,7 @@ class GRUCell(ExtendedRNNCell):
         h_prime = Activation(self.activation)(h_prime)
         gate = Lambda(lambda x: x[0] * x[1] + (1. - x[0]) * x[2], output_shape=lambda s: s[0])
         h = gate([z, h_prime, h_tm1])
-        return Model([x, h_tm1], [h, h])
+        return Model([x, h_tm1], [h, Identity()(h)])
 
 
 class LSTMCell(ExtendedRNNCell):
@@ -172,4 +177,4 @@ class LSTMCell(ExtendedRNNCell):
         c = Activation(self.activation)(c)
         o = add([x3, r3])
         h = multiply([o, c])
-        return Model([x, h_tm1, c_tm1], [h, h, c])
+        return Model([x, h_tm1, c_tm1], [h, Identity()(h), c])

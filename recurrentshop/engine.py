@@ -276,6 +276,7 @@ class RecurrentModel(Recurrent):
             self.readout = True
             state_spec += [Input(batch_shape=K.int_shape(outputs[0]))]
             self.states += [None]
+            inputs += [readout_input]
         else:
             self.readout = False
         if teacher_force and not self.readout:
