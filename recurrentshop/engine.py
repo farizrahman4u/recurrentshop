@@ -360,10 +360,23 @@ class RecurrentModel(Recurrent):
                 states.append(K.zeros(shape))
         state_initializer  = self.state_initializer
         if state_initializer:
+            # some initializers don't accept symbolic shapes
+            for i in range(len(state_shapes)):
+                if state_shapes[i][0] is None:
+                    if hasattr(self, 'batch_size'):
+                        state_shapes[i] = (self.batch_size,) + state_shapes[i][1:]
+                if None in state_shapes[i]:
+                    state_shapes[i] = K.shape(states[i])
             num_state_init = len(state_initializer)
             num_state = self.num_states
             assert num_state_init == num_state, 'RNN has ' + str(num_state) + ' states, but was provided ' + str(num_state_init) + ' state initializers.'
-            states = [init(K.shape(state)) for state, init in zip(states, state_initializer)]
+            for i in range(len(states)):
+                init = state_initializer[i]
+                shape = state_shapes[i]
+                try:
+                    states[i] = init(shape)
+                except:
+                    raise Exception('Seems the initializer ' + init.__class__.__name__ + ' does not support symbolic shapes(' + str(shape) + '). Try providing the full input shape (include batch dimension) for you RecurrentModel.')
         return states
 
     def reset_states(self, states_value=None):
@@ -858,6 +871,12 @@ class RecurrentSequential(RecurrentModel):
     def build(self, input_shape):
         if hasattr(self, 'model'):
             del self.model
+        # Try and get batch size for initializer
+        for cell in self.cells:
+            if hasattr(cell, 'batch_input_shape'):
+                if cell.batch_input_shape[0] is not None:
+                    self.batch_size = cell.batch_input_shape[0]
+                    break
         if self.state_sync:
             if type(input_shape) is list:
                 x_shape = input_shape[0]

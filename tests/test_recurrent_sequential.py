@@ -34,7 +34,7 @@ model.fit((np.random.random((32, 7, 5))), np.random.random((32, 10)))
 model.predict(np.random.random((32, 7, 5)))
 
 rnn = RecurrentSequential(state_initializer=['random_normal', 'glorot_uniform'])
-rnn.add(LSTMCell(7, input_dim=5))
+rnn.add(LSTMCell(7, batch_input_shape=(32, 5)))
 rnn.add(SimpleRNNCell(8))
 rnn.add(GRUCell(10))
 
