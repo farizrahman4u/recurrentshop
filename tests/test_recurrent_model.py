@@ -44,3 +44,20 @@ model = Model(a, b)
 model.compile(loss='mse', optimizer='sgd')
 model.fit(np.random.random((32, 5)), np.random.random((32, 7, 10)))
 model.predict(np.zeros((32, 5)))
+
+
+x = Input((5,))
+y_tm1 = Input((5,))
+h_tm1 = Input((5,))
+h = add([Dense(5)(add([x, y_tm1])), Dense(5, use_bias=False)(h_tm1)])
+h = Activation('tanh')(h)
+
+rnn = RecurrentModel(input=x, initial_states=h_tm1, output=h, final_states=h, readout_input=y_tm1)
+
+a = Input((7, 5))
+b = rnn(a)
+model = Model(a, b)
+
+model.compile(loss='mse', optimizer='sgd')
+model.fit(np.random.random((32, 7, 5)), np.random.random((32, 5)))
+model.predict(np.zeros((32, 7, 5)))
