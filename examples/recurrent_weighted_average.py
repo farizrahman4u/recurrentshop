@@ -53,7 +53,7 @@ input_dim = 1
 output_dim = 250
 timesteps = 100
 batch_size = 100
-
+n_epochs = 10
 train_data, train_labels = generate_data(num_samples=100000, max_len=timesteps)
 test_data, test_labels = generate_data(num_samples=10000, max_len=timesteps)
 
@@ -64,5 +64,5 @@ out = rwa(inp)
 out = Dense(1, activation='sigmoid')(out)
 model = Model(inp, out)
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-model.fit(train_data, train_labels, batch_size=batch_size, epochs=100)
+model.fit(train_data, train_labels, batch_size=batch_size, epochs=n_epochs)
 model.evaluate(test_data, test_labels, batch_size=batch_size)
