@@ -1,3 +1,14 @@
+'''
+Machine Learning on Sequential Data Using a Recurrent Weighted Average
+by Jared Ostmeyer and Lindsay Cowell
+
+https://arxiv.org/abs/1703.01253
+
+This is the implementation of 'Classifying by Sequence Length'
+experiment mentioned in Section 3.3 of the paper
+'''
+
+
 import numpy as np
 from recurrentshop import RecurrentModel
 from keras.models import Model
