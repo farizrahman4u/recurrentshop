@@ -6,9 +6,9 @@ from keras.layers import *
 from .engine import RNNCell
 
 
-
 def _slice(x, dim, index):
-    return x[:, index * dim : dim * (index + 1)]
+    return x[:, index * dim: dim * (index + 1)]
+
 
 def get_slices(x, n):
     dim = int(K.int_shape(x)[1] / n)
@@ -18,7 +18,7 @@ def get_slices(x, n):
 class Identity(Layer):
 
     def call(self, x):
-      return x + 0.
+        return x + 0.
 
 
 class ExtendedRNNCell(RNNCell):
@@ -85,17 +85,17 @@ class SimpleRNNCell(ExtendedRNNCell):
         h_tm1 = Input(batch_shape=output_shape)
         kernel = Dense(output_dim,
                        kernel_initializer=self.kernel_initializer,
-                       kernel_regularizer=self.kernel_regularizer, 
+                       kernel_regularizer=self.kernel_regularizer,
                        kernel_constraint=self.kernel_constraint,
                        use_bias=self.use_bias,
                        bias_initializer=self.bias_initializer,
                        bias_regularizer=self.bias_regularizer,
                        bias_constraint=self.bias_constraint)
         recurrent_kernel = Dense(output_dim,
-                                kernel_initializer=self.recurrent_initializer,
-                                kernel_regularizer=self.recurrent_regularizer, 
-                                kernel_constraint=self.recurrent_constraint,
-                                use_bias=False)
+                                 kernel_initializer=self.recurrent_initializer,
+                                 kernel_regularizer=self.recurrent_regularizer,
+                                 kernel_constraint=self.recurrent_constraint,
+                                 use_bias=False)
         h = add([kernel(x), recurrent_kernel(h_tm1)])
         h = Activation(self.activation)(h)
         return Model([x, h_tm1], [h, Identity()(h)])
@@ -111,22 +111,22 @@ class GRUCell(ExtendedRNNCell):
         h_tm1 = Input(batch_shape=output_shape)
         kernel = Dense(output_dim * 3,
                        kernel_initializer=self.kernel_initializer,
-                       kernel_regularizer=self.kernel_regularizer, 
+                       kernel_regularizer=self.kernel_regularizer,
                        kernel_constraint=self.kernel_constraint,
                        use_bias=self.use_bias,
                        bias_initializer=self.bias_initializer,
                        bias_regularizer=self.bias_regularizer,
                        bias_constraint=self.bias_constraint)
         recurrent_kernel_1 = Dense(output_dim * 2,
-                                kernel_initializer=self.recurrent_initializer,
-                                kernel_regularizer=self.recurrent_regularizer, 
-                                kernel_constraint=self.recurrent_constraint,
-                                use_bias=False)
+                                   kernel_initializer=self.recurrent_initializer,
+                                   kernel_regularizer=self.recurrent_regularizer, 
+                                   kernel_constraint=self.recurrent_constraint,
+                                   use_bias=False)
         recurrent_kernel_2 = Dense(output_dim,
-                                kernel_initializer=self.recurrent_initializer,
-                                kernel_regularizer=self.recurrent_regularizer, 
-                                kernel_constraint=self.recurrent_constraint,
-                                use_bias=False)                          
+                                   kernel_initializer=self.recurrent_initializer,
+                                   kernel_regularizer=self.recurrent_regularizer, 
+                                   kernel_constraint=self.recurrent_constraint,
+                                   use_bias=False)                          
         kernel_out = kernel(x)
         recurrent_kernel_1_out = recurrent_kernel_1(h_tm1)
         x0, x1, x2 = get_slices(kernel_out, 3)

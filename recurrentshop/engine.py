@@ -11,8 +11,6 @@ def _to_list(x):
     return x
 
 
-
-
 class _OptionalInputPlaceHolder(Layer):
 
     def __init__(self, name=None, **kwargs):
@@ -38,8 +36,6 @@ class _OptionalInputPlaceHolder(Layer):
 
     def call(self, inputs=None):
         return self.tensor
-
-
 
 
 def _get_cells():

@@ -3,11 +3,9 @@ from keras.layers import *
 from .engine import RNNCell
 
 
-
 '''
 This is a more readable version of cells.py.
 '''
-
 
 
 class SimpleRNNCell(RNNCell):
