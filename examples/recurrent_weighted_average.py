@@ -18,6 +18,10 @@ from keras import backend as K
 from keras import initializers
 
 
+#####################################################################
+# Generates data
+#####################################################################
+
 def generate_data(num_samples, max_len):
     data = np.zeros([num_samples, max_len])
     labels = np.zeros([num_samples, 1])
@@ -32,6 +36,10 @@ def generate_data(num_samples, max_len):
     data = np.expand_dims(data, axis=-1)
     return data, labels
 
+
+#####################################################################
+# RWA layer
+#####################################################################
 
 def RWA(input_dim, output_dim):
     x = Input((input_dim, ))
@@ -50,7 +58,7 @@ def RWA(input_dim, output_dim):
     z = multiply([u, g])
     nt = add([n_tm1, multiply([z, e_a])])
     dt = add([d_tm1, e_a])
-    dt = Lambda(lambda x: 1.0/x)(dt)
+    dt = Lambda(lambda x: 1.0 / x)(dt)
     ht = multiply([nt, dt])
     ht = Activation('tanh')(ht)
 
@@ -60,20 +68,32 @@ def RWA(input_dim, output_dim):
                           state_initializer=[initializers.random_normal(stddev=1.0)])
 
 
+#####################################################################
+# Settings
+#####################################################################
+
 input_dim = 1
 output_dim = 250
 timesteps = 100
 batch_size = 100
 n_epochs = 10
+
+####################################################################
+# Fetch datasets
+####################################################################
+
 train_data, train_labels = generate_data(num_samples=100000, max_len=timesteps)
 test_data, test_labels = generate_data(num_samples=10000, max_len=timesteps)
 
-rwa = RWA(input_dim, output_dim)
+####################################################################
+# Build and train model
+####################################################################
 
 inp = Input((timesteps, input_dim))
-out = rwa(inp)
+out = RWA(input_dim, output_dim)(inp)
 out = Dense(1, activation='sigmoid')(out)
 model = Model(inp, out)
+
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 model.fit(train_data, train_labels, batch_size=batch_size, epochs=n_epochs)
 model.evaluate(test_data, test_labels, batch_size=batch_size)
