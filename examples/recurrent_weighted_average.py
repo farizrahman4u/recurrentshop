@@ -27,10 +27,10 @@ def generate_data(num_samples, max_len):
     labels = np.zeros([num_samples, 1])
 
     for sample, label in zip(data, labels):
-        length = np.random.randint(1, max_len+1)
-        n = np.random.normal()
+        length = np.random.randint(0, max_len + 1)
+        n = np.random.normal(size=length)
         sample[:length] += n
-        if length > max_len/2:
+        if length > max_len / 2:
             label += 1
 
     data = np.expand_dims(data, axis=-1)
