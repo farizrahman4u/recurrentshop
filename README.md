@@ -5,134 +5,125 @@ Framework for building complex recurrent neural networks with Keras
 Ability to easily iterate over different neural network architectures is key to doing machine learning research. While deep learning libraries like [Keras](https://www.keras.io) makes it very easy to prototype new layers and models, writing custom recurrent neural networks is harder than it needs to be in almost all popular deep learning libraries available today. One key missing feature in these libraries is reusable RNN cells. Most libraries provide layers (such as LSTM, GRU etc), which can only be used as is, and not be easily embedded in a bigger RNN. Writing the RNN logic itself can be tiresome at times. For example in Keras, information about the states (shape and initial value) are provided by writing two seperate functions, `get_initial_states` and `reset_states` (for stateful version). There are many architectures whose implementation is not trivial using modern deep learning libraries, such as:
 
 * Synchronising the states of all the layers in a RNN stack.
-* Initializing the hidden state of a RNN with the output of a previous layer.
 * Feeding back the output of the last layer of a RNN stack to the first layer in next time step (readout).
 * Decoders : RNNs who can look at the whole of the input sequence / vector at every time step.
 * Teacher forcing : Using the ground truth at time t-1 for predicting at time t during training.
+* Nested RNNs.
+* Initializing states with different distributions.
 
-Recurrent shop adresses these issues by providing a set of *RNNCells*, which can be added sequentially to a special layer called *RecurrentContainer* along with other layers such as `Dropout` and `Activation`, very similar to adding layers to a `Sequential` model in Keras. The `RecurrentContainer` then behaves like a standard Keras `Recurrent` instance. In case of RNN stacks, the computation is done depth-first, which results in significant speed ups.
 
-Writing the RNN logic itself has been simplified to a great extend. The user is only required to provide the step function and the shapes for the weights and the states. Default initialization for weights is glorot uniform. States are initialized by zeros, unless specified otherwise.
+Recurrent shop adresses these issues by letting the user write RNNs of arbitrary complexity using Keras's functional API. In other words, the user builds a standard Keras model which defines the logic of the RNN for a single timestep, and RecurrentShop converts this model into a `Recurrent` instance, which is capable of processing sequences.
 
-------------------
 
-## Writing a Simple RNN cell
+## Writing a Simple RNN using Functional API
  
 ```python
- # This is only to demonstrate how easy it is to write a RNNCell.
- # See recurrentshop/recurrentshop/cells.py for a better version of SimpleRNNCell with more options.
- 
- class SimpleRNNCell(RNNCell):
- 
-  def build(self, input_shape):
-    input_dim = input_shape[-1]
-    output_dim = self.output_dim
-    h = (-1, output_dim)  # -1 = batch size
-    W = (input_dim, output_dim)
-    U = (output_dim, output_dim)
-    b = (self.output_dim,)
-   
-      def step(x, states, weights):
-        h_tm1 = states[0]
-        W, U, b = weights
-        h = K.dot(x, W) + K.dot(h_tm1, U) + b
+# The RNN logic is written using Keras's functional API.
+# Which means we use Keras layers instead of theano/tensorflow ops
+from keras.layers import *
+from keras.models import *
+from recurrentshop import *
 
-    self.step = step
-    self.weights = [W, U, b]
-    self.states = [h]
+x_t = Input(5,)) # The input to the RNN at time t
+h_tm1 = Input((10,))  # Previous hidden state
 
-    super(SimpleRNNCell, self).build(input_shape)
+# Compute new hidden state
+h_t = add([Dense(10)(x_t), Dense(10, use_bias=False)(h_tm1)])
+
+# tanh activation
+h_t = Activation('tanh')(h_t)
+
+# Build the RNN
+rnn = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, output_states=[h_t])
+
+# rnn is a standard Keras `Recurrent` instance. RecuurentModel also accepts arguments such as unroll, return_sequences etc
+
+# Run the RNN over a random sequence
+
+x = Input((7,5))
+y = rnn(x)
+
+model = Model(x, y)
+model.predict(np.random.random((7, 5)))
 
 ```
 
-## Recurrent container
+## RNNCells
+
+An `RNNCell` is a layer which defines the computation of an RNN for a single timestep. It takes a list of tensors as input (`[input, state1_tm1, state2_tm1..]`) and outputs a list of tensors (`[output, state1_t, state2_t...]`). An RNNCell does not iterate over an input sequence. It works on a single time step. So the shape of the input to an `LSTMCell` would be `(batch_size, input_dim)` rather than `(batch_size, input_length, input_dim)`
+
+RecurrentShop comes with 3 built-in RNNCells : `SimpleRNNCell`, `GRUCell`, and `LSTMCell`
+There are 2 versions of each of these cells. [The basic version which is more readable](recurrentshop/basic_cells.py) which you can refer to learn how to write custom RNNCells and the [customizable and recommended version](recurrentshop/cells.py) which has more options like setting regularizers, constraints, activations etc.
+
+An `RNNCell` can be easily converted to a Keras `Recurrent` layer:
 
 ```python
+from recurrentshop.cells import LSTMCell
 
-rc = RecurrentContainer()
-rc.add(SimpleRNNCell(10, input_dim=20))
-rc.add(Activation('tanh'))
+lstm_cell = LSTMCell(10, input_dim=5)
+lstm_layer = lstm_cell.get_layer()
+
+# get_layer accepts arguments like return_sequences, unroll etc :
+lstm_layer = lstm_cell.get_layer(return_sequences=True, unroll=True)
+
 ```
 
-## Stacking RNN cells
+## RecurrentSequential
+
+`RecurrentSequential` is the Recurrent analog for Keras's `Sequential` model. It lets you stack RNNCells and other layers such as `Dense` and `Activation` to build a Recurrent layer:
 
 ```python
+rnn = RecurrentSequential(unroll=False, return_sequences=False)
+rnn.add(SimpleRNNCell(10, input_dim=5))
+rnn.add(LSTMCell(12))
+rnn.add(Dense(5))
+rnn.add(GRU(8))
 
-rc = RecurrentContainer()
-rc.add(SimpleRNNCell(10, input_dim=20))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(Activation('tanh'))
-
+# rnn can now be used as regular Keras Recurrent layer.
 ```
 
-## State synchronization
+## Nesting RecurrentSequentials
+
+A `RecurrentSequential` (or any `RecurrentModel`)  can be converted to a cell using the `get_cell()` method. This cell can then be added to another `RecurrentSequential`.
 
 ```python
-# All cells will use the same state(s)
+rnn1 = RecurrentSequential()
+rnn1.add(....)
+rnn1.add(....)
 
-rc = RecurrentContainer(state_sync=True)
-rc.add(SimpleRNNCell(10, input_dim=20))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(Activation('tanh'))
+rnn1_cell = rnn1.get_cell()
+
+rnn2 = RecurrentSequential()
+rnn2.add(rnn1_cell)
+rnn2.add(...)
 ```
 
-## Readout
+## Using RNNCells in Functional API
+
+Since an `RNNCell` is a regular Keras layer by inheritance, it can be used for building `RecurrentModel`s using functional API.
 
 ```python
-# Output of the final layer in the previous time step is available to the first layer(added to the input by default)
+from recurrentshop import *
+fom keras.layers import *
+from keras.models import Model
 
-rc = RecurrentContainer(readout=True)
-rc.add(SimpleRNNCell(10, input_dim=20))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(SimpleRNNCell(10))
-rc.add(Activation('tanh'))
+input = Input((5,))
+state1_tm1 = Input((10,))
+state2_tm1 = Input((10,))
+state3_tm1 = Input((10,))
+
+lstm_output, state1_t, state2_t = LSTMCell(10)([input, state1_tm1, state2_tm1])
+gru_output, state3_t = GRUCell(10)([input, state3_tm1])
+
+output = add([lstm_output, gru_output])
+output = Activation('tanh')(output)
+
+rnn = RecurrentModel(input=input, initial_states=[state1_tm1, state2_tm1, state3_tm1], output=output, final_states=[state1_t, state2_t, state3_t])
 ```
 
-## Decoder
+# More features
 
-```python
-# Here we decode a vector into a sequence of vectors. The input could also be a sequence, such as in the case of Attention models, where the whole input sequence is available to the RNN at every time step
-
-# In this case, input to rc is a 2d vector, not a sequence
-
-rc = RecurrentContainer(decode=True, output_length=10)
-rc.add(SimpleRNNCell(10, input_dim=20))
-```
-
-## Teacher forcing
-
-See [Seq2Seq](https://www.github.com/farizrahman4u/seq2seq)
-
-
-## LSTM and GRU
-
-Recurrent Shop comes with `LSTMCell` and `GRUCell` built-in, which can be added to RecurrentContainers using the same API discussed above.
-
-## Finalizing your model
-
-Once your `RecurrentContainer` is ready, you can add it to a `Sequential` model, or call it using functional API like any other layer:
-
-```python
-model = Sequential()
-# Add layers, if any
-model.add(rc)
-# Add more layers, if any
-model.compile(loss='mse', optimizer='sgd')
-```
-
-```python
-a = Input((None, 20))
-b = rc(a)
-model = Model(a, b)
-model.compile(loss='mse', optimizer='sgd')
-```
-
-------------------
+See docs/ directory for more features.
 
 
 # Installation
@@ -154,5 +145,4 @@ Create an issue, with a minimal script to reproduce the problem you are facing.
 # Have questions?
 
 Create an issue or drop me an email (fariz@datalog.ai).
-
 
