@@ -27,7 +27,7 @@ readout_input = Input((10,))
 
 # Here, I simply add half the readout to the input.. you can do whatever you want.
 
-readout_half = Lambda(lambda x: 0.5 * x)
+readout_half = Lambda(lambda x: 0.5 * x)(readout_input)
 lstms_input = add([x, readout_half])
 
 # Deep LSTM
