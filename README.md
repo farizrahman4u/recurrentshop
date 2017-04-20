@@ -75,7 +75,7 @@ lstm_layer = lstm_cell.get_layer(return_sequences=True, unroll=True)
 ```python
 rnn = RecurrentSequential(unroll=False, return_sequences=False)
 rnn.add(SimpleRNNCell(10, input_dim=5))
-rnn.add(LSTM(12))
+rnn.add(LSTMCell(12))
 rnn.add(Dense(5))
 rnn.add(GRU(8))
 
