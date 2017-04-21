@@ -739,7 +739,7 @@ class RecurrentModel(Recurrent):
     # SERIALIZATION
 
 
-    def _sertialize_state_initialzer(self):
+    def _serialize_state_initializer(self):
         si = self.state_initializer
         if si is None:
             return None
@@ -752,7 +752,7 @@ class RecurrentModel(Recurrent):
                   'decode': self.decode,
                   'output_length': self.output_length,
                   'return_states': self.return_states,
-                  'state_initializer' : self._sertialize_state_initialzer()
+                  'state_initializer': self._serialize_state_initializer()
                   }
         base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
