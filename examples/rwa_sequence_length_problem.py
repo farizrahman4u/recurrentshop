@@ -18,9 +18,16 @@ from keras import backend as K
 from keras import initializers
 
 
-#####################################################################
-# Generates data
-#####################################################################
+'''
+Training Data
+
+The length of each sequence is randomly drawn from a uniform distribution over
+every possible length 0 to T, where T is the maximum possible length of
+the sequence. Each step in the sequence is populated with a random number drawn
+from a unit normal distribution. Sequences greater than length T /2 are
+labeled with 1 while shorter sequences are labeled with 0.
+'''
+
 
 def generate_data(num_samples, max_len):
     data = np.zeros([num_samples, max_len])

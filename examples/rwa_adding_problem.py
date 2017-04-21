@@ -18,9 +18,17 @@ from keras import backend as K
 from keras import initializers
 
 
-#####################################################################
-# Generates data
-#####################################################################
+'''
+Training data
+
+The input sequence consists of two dimensions at each step. The first dimension 
+serves as an indicator marking the value to add while the second dimension is the
+actual number to be added and is drawn at random from a uniform
+distribution over [0, 1]. The target value is the sum of the two numbers
+that has `1` in the first dimernsion. Only two steps in the entire
+sequence will have an indicator of 1, leaving the indicator 0 everywhere else.
+'''
+
 
 def generate_data(num_samples, max_len):
     values = np.random.normal(size=[num_samples, max_len, 1])
@@ -82,9 +90,9 @@ n_epochs = 10
 ####################################################################
 # Fetch datasets
 ####################################################################
-print "Generating train data"
+print('Generating train data')
 train_data, train_labels = generate_data(num_samples=100000, max_len=timesteps)
-print 'Generating test data'
+print('Generating test data')
 test_data, test_labels = generate_data(num_samples=10000, max_len=timesteps)
 
 ####################################################################
