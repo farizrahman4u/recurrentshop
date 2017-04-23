@@ -3,7 +3,7 @@ from keras.models import Model
 from keras import initializers
 from .backend import rnn, learning_phase_scope
 from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
-from .cells import SimpleRNNCell, LSTMCell, GRUCell
+# from .cells import SimpleRNNCell, LSTMCell, GRUCell
 
 
 def _to_list(x):
@@ -41,7 +41,7 @@ class _OptionalInputPlaceHolder(Layer):
 
 def _get_cells():
     cells = {}
-    cells['SimpleRNNCell'] = SimpleRNNCell
+    cells['SimpleRNNCell'] = SimpleRNNCell    # TODO: All these cells are not available here.
     cells['LSTMCell'] = LSTMCell
     cells['GRUCell'] = GRUCell
     cells['_OptionalInputPlaceHolder'] = _OptionalInputPlaceHolder
