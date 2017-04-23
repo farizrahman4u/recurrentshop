@@ -8,8 +8,8 @@ class learning_phase_scope(object):
 		self.value = value
 
 	def __enter__(self):
-		self.learning_phase_placeholder = K.learning_phase()
 		K.set_learning_phase(self.value)
+		self.learning_phase_placeholder = K.learning_phase()
 
 	def __exit__(self, *args):
 		K._GRAPH_LEARNING_PHASES[tf.get_default_graph()] = self.learning_phase_placeholder
