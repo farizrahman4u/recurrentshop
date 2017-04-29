@@ -39,7 +39,7 @@ class _OptionalInputPlaceHolder(Layer):
 
 
 def _get_cells():
-    from .cells import *
+    from .cells import SimpleRNNCell, LSTMCell, GRUCell
     cells = {}
     cells['SimpleRNNCell'] = SimpleRNNCell
     cells['LSTMCell'] = LSTMCell
