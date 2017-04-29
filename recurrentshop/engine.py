@@ -40,7 +40,7 @@ class _OptionalInputPlaceHolder(Layer):
 
 def _get_cells():
     cells = {}
-    cells['SimpleRNNCell'] = SimpleRNNCell    # TODO: All these cells are not available here.
+    cells['SimpleRNNCell'] = SimpleRNNCell
     cells['LSTMCell'] = LSTMCell
     cells['GRUCell'] = GRUCell
     cells['_OptionalInputPlaceHolder'] = _OptionalInputPlaceHolder
