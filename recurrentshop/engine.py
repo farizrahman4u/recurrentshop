@@ -113,7 +113,7 @@ class RNNCell(Layer):
     def compute_output_shape(self, input_shape):
         model_inputs = self.model.input
         if type(model_inputs) is list and type(input_shape) is not list:
-            input_shape = [input_shape] + list(map(K.int_shape, model.input[1:]))
+            input_shape = [input_shape] + list(map(K.int_shape, self.model.input[1:]))
         return self.model.compute_output_shape(input_shape)
 
     def call(self, inputs, learning=None):
@@ -740,7 +740,6 @@ class RecurrentModel(Recurrent):
 
     # SERIALIZATION
 
-
     def _serialize_state_initializer(self):
         si = self.state_initializer
         if si is None:
@@ -749,6 +748,7 @@ class RecurrentModel(Recurrent):
             return list(map(initializers.serialize, si))
         else:
             return initializers.serialize(si)
+
     def get_config(self):
         config = {'model_config': self.model.get_config(),
                   'decode': self.decode,
