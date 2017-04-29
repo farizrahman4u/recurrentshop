@@ -33,6 +33,7 @@ class _OptionalInputPlaceHolder(Layer):
              output_masks=[None],
              input_shapes=[],
              output_shapes=[(2,)])
+        self.build((2,))
 
     def call(self, inputs=None):
         return self.tensor
