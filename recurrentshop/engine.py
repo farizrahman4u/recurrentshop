@@ -39,6 +39,7 @@ class _OptionalInputPlaceHolder(Layer):
 
 
 def _get_cells():
+	from .cells import *
     cells = {}
     cells['SimpleRNNCell'] = SimpleRNNCell
     cells['LSTMCell'] = LSTMCell
@@ -198,7 +199,7 @@ class RNNCell(Layer):
 
     def get_config(self):
         config = {'output_dim': self.output_dim}
-        base_config = super(RNNcell, self).get_config()
+        base_config = super(RNNCell, self).get_config()
         config.update(base_config)
         return config
 

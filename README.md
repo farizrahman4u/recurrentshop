@@ -104,7 +104,7 @@ Since an `RNNCell` is a regular Keras layer by inheritance, it can be used for b
 
 ```python
 from recurrentshop import *
-fom keras.layers import *
+from keras.layers import *
 from keras.models import Model
 
 input = Input((5,))
