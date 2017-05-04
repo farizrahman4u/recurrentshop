@@ -170,7 +170,7 @@ class LSTMCell(ExtendedRNNCell):
         f = add([x0, r0])
         f = Activation(self.recurrent_activation)(f)
         i = add([x1, r1])
-        i = Activation(self.recurrent_activation)(f)
+        i = Activation(self.recurrent_activation)(i)
         c_prime = add([x2, r2])
         c_prime = Activation(self.activation)(c_prime)
         c = add([multiply([f, c_tm1]), multiply([i, c_prime])])

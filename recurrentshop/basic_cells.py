@@ -50,7 +50,7 @@ class LSTMCell(RNNCell):
         f = add([Dense(output_dim)(x), Dense(output_dim, use_bias=False)(h_tm1)])
         f = Activation('sigmoid')(f)
         i = add([Dense(output_dim)(x), Dense(output_dim, use_bias=False)(h_tm1)])
-        i = Activation('sigmoid')(f)
+        i = Activation('sigmoid')(i)
         c_prime = add([Dense(output_dim)(x), Dense(output_dim, use_bias=False)(h_tm1)])
         c_prime = Activation('tanh')(c_prime)
         c = add([multiply([f, c_tm1]), multiply([i, c_prime])])
