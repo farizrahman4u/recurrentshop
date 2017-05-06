@@ -988,6 +988,8 @@ class RecurrentSequential(RecurrentModel):
                 input_readout_merged = average([input, readout])
             elif self.readout in ['max, maximum']:
                 input_readout_merged = maximum([input, readout])
+            elif self.readout is 'readout_only':
+                input_readout_merged = readout
             initial_states = [Input(batch_shape=K.int_shape(s)) for s in initial_states]
             output = _to_list(self.model([input_readout_merged] + initial_states))
             final_states = output[1:]
