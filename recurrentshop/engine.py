@@ -1011,16 +1011,28 @@ class RecurrentSequential(RecurrentModel):
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
-        if not hasattr(self, 'model'):
-            if len(self.cells) > 0:
-                input_shape = self.input_spec.shape
-                self.build(input_shape)
-            else:
-                self.model = None
-        config = {'state_sync': self.state_sync, 'readout_activation': activations.serialize(self.readout_activation)}
-        base_config = super(RecurrentSequential, self).get_config()
+        config = {'cells': list(map(serialize, self.cells)),
+                  'decode': self.decode,
+                  'output_length': self.output_length,
+                  'readout': self.readout,
+                  'teacher_force': self.teacher_force,
+                  'return_states': self.return_states,
+                  'state_sync': self.state_sync,
+                  'state_initializer': self._serialize_state_initializer(),
+                  'readout_activation': activations.serialize(self.readout_activation)}
+        base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
         return config
+
+    @classmethod
+    def from_config(cls, config, custom_objects={}):
+        custom_objects.update(_get_cells())
+        cells = config.pop('cells')
+        rs = cls(**config)
+        for cell_config in cells:
+            cell = deserialize(cell_config, custom_objects)
+            rs.add(cell)
+        return rs
 
 # Legacy
 RecurrentContainer = RecurrentSequential
