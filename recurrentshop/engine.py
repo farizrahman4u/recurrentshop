@@ -845,7 +845,6 @@ class RecurrentSequential(RecurrentModel):
                 state_initializer = initializers.get(state_initializer)
         self._state_initializer = state_initializer
 
-
     @property
     def state_initializer(self):
         if self._state_initializer is None:
@@ -875,14 +874,17 @@ class RecurrentSequential(RecurrentModel):
 
     def add(self, cell):
         self.cells.append(cell)
+        cell_input_shape = cell.batch_input_shape
+        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
+            cell_input_shape = cell_input_shape[0]
         if len(self.cells) == 1:
-            cell_input_shape = cell.batch_input_shape
-            if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
-                cell_input_shape = cell_input_shape[0]
             if self.decode:
                 self.input_spec = InputSpec(shape=cell_input_shape)
             else:
                 self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+        batch_size = cell_input_shape[0]
+        if batch_size is not None:
+            self.batch_size = batch_size
         if not self.stateful:
             self.states = [None] * self.num_states
 
@@ -890,11 +892,11 @@ class RecurrentSequential(RecurrentModel):
         if hasattr(self, 'model'):
             del self.model
         # Try and get batch size for initializer
-        for cell in self.cells:
-            if hasattr(cell, 'batch_input_shape'):
-                if cell.batch_input_shape[0] is not None:
-                    self.batch_size = cell.batch_input_shape[0]
-                    break
+        if not hasattr(self, 'batch_size'):
+                if hasattr(self, 'batch_input_shape'):
+                    batch_size = self.batch_input_shape[0]
+                    if batch_size is not None:
+                        self.batch_size = batch_size
         if self.state_sync:
             if type(input_shape) is list:
                 x_shape = input_shape[0]
@@ -1009,7 +1011,7 @@ class RecurrentSequential(RecurrentModel):
     def get_config(self):
         if not hasattr(self, 'model'):
             if len(self.cells) > 0:
-                input_shape = self.cells[0].batch_input_shape
+                input_shape = self.input_spec.shape
                 self.build(input_shape)
             else:
                 self.model = None
