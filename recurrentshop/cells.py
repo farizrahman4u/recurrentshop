@@ -23,7 +23,7 @@ class Identity(Layer):
 
 class ExtendedRNNCell(RNNCell):
 
-    def __init__(self, units,
+    def __init__(self, units=None,
                  activation='tanh',
                  recurrent_activation='hard_sigmoid',
                  use_bias=True,
@@ -38,7 +38,9 @@ class ExtendedRNNCell(RNNCell):
                  recurrent_constraint=None,
                  bias_constraint=None,
                  **kwargs):
-        if units is not None:
+        if units is None:
+          assert 'output_dim' in kwargs, 'Missing argument: units'
+        else:
             kwargs['output_dim'] = units
         self.activation = activations.get(activation)
         self.recurrent_activation = activations.get(recurrent_activation)
