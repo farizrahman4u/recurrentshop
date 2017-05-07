@@ -1011,7 +1011,7 @@ class RecurrentSequential(RecurrentModel):
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
-        config = {'cells': [cell.get_config() for cell in self.cells],
+        config = {'cells': list(map(serialize, self.cells)),
                   'decode': self.decode,
                   'output_length': self.output_length,
                   'readout': self.readout,
@@ -1023,6 +1023,16 @@ class RecurrentSequential(RecurrentModel):
         base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
         return config
+
+    @classmethod
+    def from_config(cls, config, custom_objects={}):
+        custom_objects.update(_get_cells())
+        cells = config.pop('cells')
+        rs = cls(**config)
+        for cell_config in cells:
+            cell = deserialize(cell_config, custom_objects)
+            rs.add(cell)
+        return rs
 
 # Legacy
 RecurrentContainer = RecurrentSequential
