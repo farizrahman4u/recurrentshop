@@ -222,7 +222,10 @@ class RNNCellFromModel(RNNCell):
 
     def get_config(self):
         config = super(RNNCellFromModel, self).get_config()
-        config['model_config'] = self.model.get_config()
+        if self.model is None:
+            config['model_config'] = None
+        else:
+            config['model_config'] = self.model.get_config()
         return config
 
     def from_config(cls, config, custom_objects={}):
@@ -466,6 +469,8 @@ class RecurrentModel(Recurrent):
         # input shape: `(samples, time (padded with zeros), input_dim)`
         # note that the .build() method of subclasses MUST define
         # self.input_spec and self.state_spec with complete input shapes.
+        if self.model is None:
+            raise Exception('Empty RecurrentModel.')
         num_req_states = len(self.states)
         if type(inputs) is list:
             inputs_list = inputs
@@ -766,7 +771,10 @@ class RecurrentModel(Recurrent):
         custom_objects.update(_get_cells())
         config = config.copy()
         model_config = config.pop('model_config')
-        model = Model.from_config(model_config, custom_objects)
+        if model_config is None:
+            model = None
+        else:
+            model = Model.from_config(model_config, custom_objects)
         if type(model.input) is list:
             input = model.input[0]
             initial_states = model.input[1:]
@@ -999,6 +1007,12 @@ class RecurrentSequential(RecurrentModel):
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
+        if not hasattr(self, 'model'):
+            if len(self.cells) > 0:
+                input_shape = self.cells[0].batch_input_shape
+                self.build(input_shape)
+            else:
+                self.model = None
         config = {'state_sync': self.state_sync, 'readout_activation': activations.serialize(self.readout_activation)}
         base_config = super(RecurrentSequential, self).get_config()
         config.update(base_config)
