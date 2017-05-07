@@ -228,6 +228,7 @@ class RNNCellFromModel(RNNCell):
             config['model_config'] = self.model.get_config()
         return config
 
+    @classmethod
     def from_config(cls, config, custom_objects={}):
         if type(custom_objects) is list:
             custom_objects = {obj.__name__: obj for obj in custom_objects}
@@ -765,6 +766,7 @@ class RecurrentModel(Recurrent):
         config.update(base_config)
         return config
 
+    @classmethod
     def from_config(cls, config, custom_objects={}):
         if type(custom_objects) is list:
             custom_objects = {obj.__name__: obj for obj in custom_objects}
