@@ -64,6 +64,32 @@ def _is_all_none(iterable_or_element):
     return True
 
 
+def _get_cell_input_shape(cell):
+    if hasattr(cell, 'batch_input_shape'):
+        cell_input_shape = cell.batch_input_shape
+    elif hasattr(cell, 'input_shape'):
+        cell_input_shape = cell.input_shape
+    elif hasattr(cell, 'input_spec'):
+        if isinstance(cell.input_spec, list):
+            if hasattr(cell.input_spec[0], 'shape'):
+                cell_input_shape = cell.input_spec[0].shape
+            else:
+                cell_input_shape = None
+        else:
+            if hasattr(cell.input_spec, 'shape'):
+                cell_input_shape = cell.input_spec.shape
+            else:
+                cell_input_shape = None
+    else:
+        cell_input_shape = None
+
+    if cell_input_shape is not None:
+        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
+            cell_input_shape = cell_input_shape[0]
+
+    return cell_input_shape
+
+
 class RNNCell(Layer):
 
     def __init__(self, output_dim=None, **kwargs):
@@ -876,19 +902,21 @@ class RecurrentSequential(RecurrentModel):
 
     def add(self, cell):
         self.cells.append(cell)
-        cell_input_shape = cell.batch_input_shape
-        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
-            cell_input_shape = cell_input_shape[0]
+        cell_input_shape = _get_cell_input_shape(cell)
         if len(self.cells) == 1:
-            if self.decode:
-                self.input_spec = InputSpec(shape=cell_input_shape)
-            else:
-                self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
-        batch_size = cell_input_shape[0]
-        if batch_size is not None:
-            self.batch_size = batch_size
-        if not self.stateful:
-            self.states = [None] * self.num_states
+            if len(self.cells) == 1:
+                if self.decode:
+                    self.input_spec = InputSpec(shape=cell_input_shape)
+                else:
+                    self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+
+        if cell_input_shape is not None:
+            cell_input_shape = cell.batch_input_shape
+            batch_size = cell_input_shape[0]
+            if batch_size is not None:
+                self.batch_size = batch_size
+            if not self.stateful:
+                self.states = [None] * self.num_states
 
     def build(self, input_shape):
         if hasattr(self, 'model'):
