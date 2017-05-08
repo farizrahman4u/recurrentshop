@@ -876,19 +876,23 @@ class RecurrentSequential(RecurrentModel):
 
     def add(self, cell):
         self.cells.append(cell)
-        cell_input_shape = cell.batch_input_shape
-        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
-            cell_input_shape = cell_input_shape[0]
         if len(self.cells) == 1:
-            if self.decode:
-                self.input_spec = InputSpec(shape=cell_input_shape)
-            else:
-                self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
-        batch_size = cell_input_shape[0]
-        if batch_size is not None:
-            self.batch_size = batch_size
-        if not self.stateful:
-            self.states = [None] * self.num_states
+            cell_input_shape = cell.batch_input_shape
+            if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
+                cell_input_shape = cell_input_shape[0]
+            if len(self.cells) == 1:
+                if self.decode:
+                    self.input_spec = InputSpec(shape=cell_input_shape)
+                else:
+                    self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+
+        if hasattr(cell, 'batch_input_shape'):
+            cell_input_shape = cell.batch_input_shape
+            batch_size = cell_input_shape[0]
+            if batch_size is not None:
+                self.batch_size = batch_size
+            if not self.stateful:
+                self.states = [None] * self.num_states
 
     def build(self, input_shape):
         if hasattr(self, 'model'):
