@@ -65,7 +65,7 @@ def load_text():
     FILE_PATH = os.path.join(BASE_DIR, 'text8')
     if not os.path.exists(FILE_PATH):
         download_data()
-    raw_text = open(FILE_PATH, 'r')
+    raw_text = open(FILE_PATH, 'r').read()
 
     tokenizer = Tokenizer(filters='', char_level=True, lower=False)
     tokenizer.fit_on_texts(raw_text)
@@ -85,7 +85,7 @@ def generate_batch(text, batch_size, num_steps):
     for i in range(batch_size):
         data[i] = raw_data[batch_len * i:batch_len * (i + 1)]
 
-        epoch_size = (batch_len - 1) // num_steps
+    epoch_size = (batch_len - 1) // num_steps
     if epoch_size == 0:
         raise ValueError("epoch_size == 0, decrease batch_size or num_steps")
 
