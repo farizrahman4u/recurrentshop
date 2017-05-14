@@ -1,7 +1,7 @@
 '''
 Recurrent Highway Networks
 -------------------------------------------------------------------------------
-Julian Georg Zilly | Rupesh Kumar Srivastava | Jan Koutník | Jürgen Schmidhuber
+Julian Georg Zilly | Rupesh Kumar Srivastava | Jan Koutnik | Jurgen Schmidhuber
 https://arxiv.org/abs/1607.03474
 
 This is an implementation of language modeling experiments
@@ -14,7 +14,7 @@ and other datasets
 
 from recurrentshop import RecurrentModel
 from keras.models import Model
-from keras.layers import Dense, Input, Lambda
+from keras.layers import Dense, Dropout, Input, Lambda
 from keras.layers import add, multiply
 from keras.layers import Activation, Embedding
 from keras.constraints import max_norm
@@ -65,7 +65,7 @@ def load_text():
     FILE_PATH = os.path.join(BASE_DIR, 'text8')
     if not os.path.exists(FILE_PATH):
         download_data()
-    raw_text = open(FILE_PATH, 'r').read()
+    raw_text = open(FILE_PATH, 'r').read(100000)
 
     tokenizer = Tokenizer(filters='', char_level=True, lower=False)
     tokenizer.fit_on_texts(raw_text)
@@ -74,7 +74,7 @@ def load_text():
 
 
 tokenized_text, vocab_size = load_text()
-embedding_dim = vocab_size
+embedding_dim = vocab_size  # Size of character set
 
 
 def generate_batch(text, batch_size, num_steps):
@@ -128,6 +128,11 @@ def RHN(input_dim, hidden_dim, depth):
     x = Input((input_dim, ))
     s_tm1 = Input((hidden_dim, ))
 
+    #Dropout mask
+    hid_mask = Input((hidden_dim, ))
+    hid_mask_out = Lambda(lambda x: x + 0)(hid_mask)
+    s_drop = multiply([s_tm1, hid_mask])
+
     Rh = Dense(hidden_dim,
                kernel_initializer=weight_init,
                kernel_regularizer=l2(weight_decay),
@@ -146,22 +151,33 @@ def RHN(input_dim, hidden_dim, depth):
                kernel_regularizer=l2(weight_decay),
                kernel_constraint=max_norm(gradient_clip))
 
-    hl = add([Wh(x), Rh(s_tm1)])
-    tl = add([Wt(x), Rt(s_tm1)])
+    hl = add([Wh(x), Rh(s_drop)])
+    tl = add([Wt(x), Rt(s_drop)])
     cl = Lambda(lambda x: 1.0 - x)(tl)
 
     hl = Activation('tanh')(hl)
     tl = Activation('sigmoid')(tl)
     cl = Activation('sigmoid')(cl)
 
-    st = add([multiply([hl, tl]), multiply([s_tm1, cl])])
+    st = add([multiply([hl, tl]), multiply([s_drop, cl])])
 
     for _ in range(depth-1):
         st = _recurrent_transition(hidden_dim)(st)
 
-    return RecurrentModel(input=x, output=st,
-                          initial_states=[s_tm1],
-                          final_states=[st])
+    RHN_model = RecurrentModel(input=x, output=st,
+                               initial_states=[hid_mask, s_tm1],
+                               final_states=[hid_mask_out, st])
+
+    # Wrapped model
+    inp = Input(batch_shape=(batch_size, timesteps, input_dim))
+    # Creating the dropout mask
+    dp_mask = Lambda(K.ones_like)(inp)
+    dp_mask = Lambda(lambda x: K.reshape(x, (-1, batch_size, hidden_dim)))(dp_mask)
+    dp_mask = Lambda(lambda x: K.gather(x, 1))(dp_mask)
+    dp_mask = Dropout(hidden_drop, name='Rogers')(dp_mask)
+    hid_state = Lambda(K.zeros_like, name='Bucky')(dp_mask)
+    y = RHN_model(inp, initial_state=[dp_mask, hid_state])
+    return Model(inputs=[inp], outputs=[y], name='Civil-War')
 
 
 # lr decay Scheduler
@@ -177,7 +193,9 @@ class lr_scheduler(Callback):
 
 inp = Input(batch_shape=(batch_size, timesteps))
 x = Embedding(vocab_size+1, embedding_dim, input_length=timesteps)(inp)
+x = Dropout(embedding_drop)(x)
 x = RHN(embedding_dim, hidden_dim, recurrence_depth)(x)
+x = Dropout(output_drop)(x)
 out = Dense(vocab_size+1, activation='softmax')(x)
 
 model = Model(inputs=[inp], outputs=[out])
