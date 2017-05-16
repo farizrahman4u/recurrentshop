@@ -49,6 +49,7 @@ weight_init = RandomUniform(-0.04, 0.04)
 
 
 def download_data(path):
+    print('Downloading data . . .')
     url = "http://mattmahoney.net/dc/text8.zip"
     directory = os.path.dirname(path)
     if not os.path.exists(directory):
