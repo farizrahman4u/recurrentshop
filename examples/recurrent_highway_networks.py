@@ -21,7 +21,6 @@ from keras.constraints import max_norm
 from keras.initializers import Constant, RandomUniform
 from keras.regularizers import l2
 from keras.preprocessing.text import Tokenizer
-from keras.optimizers import SGD
 from keras.callbacks import Callback
 from keras import backend as K
 import numpy as np
@@ -30,11 +29,9 @@ import urllib
 import zipfile
 
 
-
 #
 # Hyperparameters
 #
-
 batch_size = 128
 timesteps = 100
 learning_rate = 0.2
@@ -51,19 +48,23 @@ transform_bias = -4.0
 weight_init = RandomUniform(-0.04, 0.04)
 
 
-def download_data():
+def download_data(path):
     url = "http://mattmahoney.net/dc/text8.zip"
-    urllib.urlretrieve(url, 'text8.zip')
-    with zipfile.Zipfile('text8.zip') as zf:
-        zf.extractall()
+    directory = os.path.dirname(path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    urllib.urlretrieve(url, path)
+    with zipfile.Zipfile(path) as zf:
+        zf.extractall(path=path)
 
 
 def load_text():
-    BASE_DIR = os.getcwd()
-    FILE_PATH = os.path.join(BASE_DIR, 'text8')
+    recurrentshop_directory = os.path.expanduser('~') + '/.recurrentshop'
+    datasets_directory = recurrentshop_directory + '/datasets'
+    FILE_PATH = os.path.join(recurrentshop_directory, datasets_directory, 'text8')
     if not os.path.exists(FILE_PATH):
-        download_data()
-    raw_text = open(FILE_PATH, 'r').read(100000)
+        download_data(FILE_PATH)
+    raw_text = open(FILE_PATH, 'r').read()
 
     tokenizer = Tokenizer(filters='', char_level=True, lower=False)
     tokenizer.fit_on_texts(raw_text)
@@ -116,7 +117,7 @@ def _recurrent_transition(hidden_dim):
 
     hl = Rh(s_lm1)
     tl = Rt(s_lm1)
-    cl = Lambda(lambda x: 1.0 - x, output_shape=lambda s:s)(tl)
+    cl = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(tl)
 
     sl = add([multiply([hl, tl]), multiply([s_lm1, cl])])
     return Model(inputs=[s_lm1], outputs=[sl])
@@ -128,8 +129,7 @@ def RHN(input_dim, hidden_dim, depth):
 
     #Dropout mask
     hid_mask = Input((hidden_dim, ))
-    hid_mask_out = Lambda(lambda x: x + 0, output_shape=lambda s:s)(hid_mask)
-
+    hid_mask_out = Lambda(lambda x: x + 0, output_shape=lambda s: s)(hid_mask)
 
     Rh = Dense(hidden_dim,
                kernel_initializer=weight_init,
@@ -151,7 +151,7 @@ def RHN(input_dim, hidden_dim, depth):
 
     hl = add([Wh(x), Rh(s_tm1)])
     tl = add([Wt(x), Rt(s_tm1)])
-    cl = Lambda(lambda x: 1.0 - x, lambda s:s)(tl)
+    cl = Lambda(lambda x: 1.0 - x, lambda s: s)(tl)
 
     hl = Activation('tanh')(hl)
     tl = Activation('sigmoid')(tl)
@@ -161,7 +161,6 @@ def RHN(input_dim, hidden_dim, depth):
     st = multiply([hid_mask, st])
     for _ in range(depth-1):
         st = _recurrent_transition(hidden_dim)(st)
-#        st = multiply([st, hid_mask])
 
     RHN_model = RecurrentModel(input=x, output=st,
                                initial_states=[hid_mask, s_tm1],
@@ -174,6 +173,7 @@ def RHN(input_dim, hidden_dim, depth):
     drop_mask = Dropout(hidden_drop)(drop_mask)
     y = RHN_model(inp, initial_state=[drop_mask, hid_state])
     return Model(inp, y)
+
 
 # lr decay Scheduler
 class lr_scheduler(Callback):
