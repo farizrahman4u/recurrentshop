@@ -520,7 +520,7 @@ class RecurrentModel(Recurrent):
                 initial_states.insert(-1, ground_truth)
                 num_req_states += 2
         if len(initial_states) != num_req_states:
-            raise ValueError('Layer has ' + str(len(self.states)) +
+            raise ValueError('Layer requires ' + str(num_req_states) +
                              ' states but was passed ' +
                              str(len(initial_states)) +
                              ' initial states.')
