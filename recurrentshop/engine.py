@@ -64,6 +64,32 @@ def _is_all_none(iterable_or_element):
     return True
 
 
+def _get_cell_input_shape(cell):
+    if hasattr(cell, 'batch_input_shape'):
+        cell_input_shape = cell.batch_input_shape
+    elif hasattr(cell, 'input_shape'):
+        cell_input_shape = cell.input_shape
+    elif hasattr(cell, 'input_spec'):
+        if isinstance(cell.input_spec, list):
+            if hasattr(cell.input_spec[0], 'shape'):
+                cell_input_shape = cell.input_spec[0].shape
+            else:
+                cell_input_shape = None
+        else:
+            if hasattr(cell.input_spec, 'shape'):
+                cell_input_shape = cell.input_spec.shape
+            else:
+                cell_input_shape = None
+    else:
+        cell_input_shape = None
+
+    if cell_input_shape is not None:
+        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
+            cell_input_shape = cell_input_shape[0]
+
+    return cell_input_shape
+
+
 class RNNCell(Layer):
 
     def __init__(self, output_dim=None, **kwargs):
@@ -876,19 +902,21 @@ class RecurrentSequential(RecurrentModel):
 
     def add(self, cell):
         self.cells.append(cell)
-        cell_input_shape = cell.batch_input_shape
-        if set(map(type, list(set(cell_input_shape) - set([None])))) != set([int]):
-            cell_input_shape = cell_input_shape[0]
+        cell_input_shape = _get_cell_input_shape(cell)
         if len(self.cells) == 1:
-            if self.decode:
-                self.input_spec = InputSpec(shape=cell_input_shape)
-            else:
-                self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
-        batch_size = cell_input_shape[0]
-        if batch_size is not None:
-            self.batch_size = batch_size
-        if not self.stateful:
-            self.states = [None] * self.num_states
+            if len(self.cells) == 1:
+                if self.decode:
+                    self.input_spec = InputSpec(shape=cell_input_shape)
+                else:
+                    self.input_spec = InputSpec(shape=cell_input_shape[:1] + (None,) + cell_input_shape[1:])
+
+        if cell_input_shape is not None:
+            cell_input_shape = cell.batch_input_shape
+            batch_size = cell_input_shape[0]
+            if batch_size is not None:
+                self.batch_size = batch_size
+            if not self.stateful:
+                self.states = [None] * self.num_states
 
     def build(self, input_shape):
         if hasattr(self, 'model'):
@@ -1011,16 +1039,28 @@ class RecurrentSequential(RecurrentModel):
         super(RecurrentSequential, self).build(input_shape)
 
     def get_config(self):
-        if not hasattr(self, 'model'):
-            if len(self.cells) > 0:
-                input_shape = self.input_spec.shape
-                self.build(input_shape)
-            else:
-                self.model = None
-        config = {'state_sync': self.state_sync, 'readout_activation': activations.serialize(self.readout_activation)}
-        base_config = super(RecurrentSequential, self).get_config()
+        config = {'cells': list(map(serialize, self.cells)),
+                  'decode': self.decode,
+                  'output_length': self.output_length,
+                  'readout': self.readout,
+                  'teacher_force': self.teacher_force,
+                  'return_states': self.return_states,
+                  'state_sync': self.state_sync,
+                  'state_initializer': self._serialize_state_initializer(),
+                  'readout_activation': activations.serialize(self.readout_activation)}
+        base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
         return config
+
+    @classmethod
+    def from_config(cls, config, custom_objects={}):
+        custom_objects.update(_get_cells())
+        cells = config.pop('cells')
+        rs = cls(**config)
+        for cell_config in cells:
+            cell = deserialize(cell_config, custom_objects)
+            rs.add(cell)
+        return rs
 
 # Legacy
 RecurrentContainer = RecurrentSequential
