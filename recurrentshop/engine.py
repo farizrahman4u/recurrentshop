@@ -703,7 +703,6 @@ class RecurrentModel(Recurrent):
         mask = input_mask[0] if type(input_mask) is list else input_mask
         mask = mask if self.return_sequences else None
         mask = [mask] + [None] * len(self.states) if self.return_states else mask
-        print mask
         return mask
 
     def set_weights(self, weights):
