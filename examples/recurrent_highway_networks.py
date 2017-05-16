@@ -29,8 +29,6 @@ import os
 import urllib
 import zipfile
 
-# TODO :
-# 1. Implement variational dropout - PRIORITY !!
 
 
 #
@@ -40,7 +38,7 @@ import zipfile
 batch_size = 128
 timesteps = 100
 learning_rate = 0.2
-hidden_dim = 100
+hidden_dim = 1000
 recurrence_depth = 10
 weight_decay = 1e-7
 lr_decay = 1.04
@@ -118,7 +116,7 @@ def _recurrent_transition(hidden_dim):
 
     hl = Rh(s_lm1)
     tl = Rt(s_lm1)
-    cl = Lambda(lambda x: 1.0 - x)(tl)
+    cl = Lambda(lambda x: 1.0 - x, output_shape=lambda s:s)(tl)
 
     sl = add([multiply([hl, tl]), multiply([s_lm1, cl])])
     return Model(inputs=[s_lm1], outputs=[sl])
@@ -130,8 +128,8 @@ def RHN(input_dim, hidden_dim, depth):
 
     #Dropout mask
     hid_mask = Input((hidden_dim, ))
-    hid_mask_out = Lambda(lambda x: x + 0)(hid_mask)
-    s_drop = multiply([s_tm1, hid_mask])
+    hid_mask_out = Lambda(lambda x: x + 0, output_shape=lambda s:s)(hid_mask)
+
 
     Rh = Dense(hidden_dim,
                kernel_initializer=weight_init,
@@ -151,34 +149,31 @@ def RHN(input_dim, hidden_dim, depth):
                kernel_regularizer=l2(weight_decay),
                kernel_constraint=max_norm(gradient_clip))
 
-    hl = add([Wh(x), Rh(s_drop)])
-    tl = add([Wt(x), Rt(s_drop)])
-    cl = Lambda(lambda x: 1.0 - x)(tl)
+    hl = add([Wh(x), Rh(s_tm1)])
+    tl = add([Wt(x), Rt(s_tm1)])
+    cl = Lambda(lambda x: 1.0 - x, lambda s:s)(tl)
 
     hl = Activation('tanh')(hl)
     tl = Activation('sigmoid')(tl)
     cl = Activation('sigmoid')(cl)
 
-    st = add([multiply([hl, tl]), multiply([s_drop, cl])])
-
+    st = add([multiply([hl, tl]), multiply([s_tm1, cl])])
+    st = multiply([hid_mask, st])
     for _ in range(depth-1):
         st = _recurrent_transition(hidden_dim)(st)
+#        st = multiply([st, hid_mask])
 
     RHN_model = RecurrentModel(input=x, output=st,
                                initial_states=[hid_mask, s_tm1],
                                final_states=[hid_mask_out, st])
-
     # Wrapped model
     inp = Input(batch_shape=(batch_size, timesteps, input_dim))
-    # Creating the dropout mask
-    dp_mask = Lambda(K.ones_like)(inp)
-    dp_mask = Lambda(lambda x: K.reshape(x, (-1, batch_size, hidden_dim)))(dp_mask)
-    dp_mask = Lambda(lambda x: K.gather(x, 1))(dp_mask)
-    dp_mask = Dropout(hidden_drop, name='Rogers')(dp_mask)
-    hid_state = Lambda(K.zeros_like, name='Bucky')(dp_mask)
-    y = RHN_model(inp, initial_state=[dp_mask, hid_state])
-    return Model(inputs=[inp], outputs=[y], name='Civil-War')
-
+    hid_state = Lambda(lambda x: x[:, 0, :1] * 0., output_shape=lambda s: (s[0], 1))(inp)
+    hid_state = Lambda(lambda x, dim: K.tile(x, (1, dim)), arguments={'dim': hidden_dim}, output_shape=(hidden_dim,))(hid_state)
+    drop_mask = Lambda(K.ones_like, output_shape=lambda s: s)(hid_state)
+    drop_mask = Dropout(hidden_drop)(drop_mask)
+    y = RHN_model(inp, initial_state=[drop_mask, hid_state])
+    return Model(inp, y)
 
 # lr decay Scheduler
 class lr_scheduler(Callback):
@@ -192,16 +187,16 @@ class lr_scheduler(Callback):
 ###########################################
 
 inp = Input(batch_shape=(batch_size, timesteps))
+x = Dropout(embedding_drop)(inp)
 x = Embedding(vocab_size+1, embedding_dim, input_length=timesteps)(inp)
-x = Dropout(embedding_drop)(x)
+x = Dropout(input_drop)(x)
 x = RHN(embedding_dim, hidden_dim, recurrence_depth)(x)
 x = Dropout(output_drop)(x)
 out = Dense(vocab_size+1, activation='softmax')(x)
 
 model = Model(inputs=[inp], outputs=[out])
 
-optim = SGD(lr=learning_rate)
-model.compile(optimizer=optim,
+model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
@@ -209,5 +204,6 @@ data_gen = generate_batch(tokenized_text, batch_size, timesteps)
 
 model.fit_generator(generator=data_gen,
                     steps_per_epoch=(len(tokenized_text)//batch_size),
+                    epochs=5,
                     verbose=1,
                     callbacks=[lr_scheduler()])
