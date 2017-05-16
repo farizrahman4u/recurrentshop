@@ -446,6 +446,7 @@ class RecurrentModel(Recurrent):
     def __call__(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, **kwargs):
         req_num_inputs = 1 + self.num_states
         inputs = _to_list(inputs)
+        inputs = inputs[:]
         if len(inputs) == 1:
             if initial_state is not None:
                 if type(initial_state) is list:
@@ -496,11 +497,13 @@ class RecurrentModel(Recurrent):
         # input shape: `(samples, time (padded with zeros), input_dim)`
         # note that the .build() method of subclasses MUST define
         # self.input_spec and self.state_spec with complete input shapes.
+        if type(mask) is list:
+            mask = mask[0]
         if self.model is None:
             raise Exception('Empty RecurrentModel.')
         num_req_states = len(self.states)
         if type(inputs) is list:
-            inputs_list = inputs
+            inputs_list = inputs[:]
             inputs = inputs_list.pop(0)
             initial_states = inputs_list[:len(self.states)]
             if len(initial_states) > 0:
@@ -700,6 +703,7 @@ class RecurrentModel(Recurrent):
         mask = input_mask[0] if type(input_mask) is list else input_mask
         mask = mask if self.return_sequences else None
         mask = [mask] + [None] * len(self.states) if self.return_states else mask
+        print mask
         return mask
 
     def set_weights(self, weights):
