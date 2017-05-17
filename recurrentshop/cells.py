@@ -240,9 +240,24 @@ class RHNCell(ExtendedRNNCell):
         ht = add([multiply([hl, tl]), multiply([h_tm1, cl])])
 
         for _ in range(self.recurrence_depth - 1):
-            hl = Dense(output_dim)(hl)
-            tl = Dense(output_dim)(tl)
-            cl = Lambda(lambda x: 1.0 - x)(tl)
-            ht = add([multiply([hl, tl]), multiply([st, cl])])
+            hli = Dense(output_dim,
+                        kernel_initializer=self.recurrent_initializer,
+                        kernel_regularizer=self.recurrent_regularizer,
+                        kernel_constraint=self.recurrent_constraint,
+                        use_bias=self.use_bias,
+                        bias_initializer=self.bias_initializer,
+                        bias_regularizer=self.bias_regularizer,
+                        bias_constraint=self.bias_constraint)(ht)
+            tli = Dense(output_dim,
+                        kernel_initializer=self.recurrent_initializer,
+                        kernel_regularizer=self.recurrent_regularizer,
+                        kernel_constraint=self.recurrent_constraint,
+                        use_bias=self.use_bias,
+                        bias_initializer=self.bias_initializer,
+                        bias_regularizer=self.bias_regularizer,
+                        bias_constraint=self.bias_constraint)(ht)
 
-        return Model([x, h_tm1], [h, Identity()(h)])
+            cli = Lambda(lambda x: 1.0 - x)(tli)
+            ht = add([multiply([hli, tli]), multiply([ht, cli])])
+
+        return Model([x, h_tm1], [ht, Identity()(ht)])
