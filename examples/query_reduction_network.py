@@ -1,3 +1,11 @@
+'''
+Query Reduction Networks for Question Answering
+Minjoon Seo | Sewon Min | Ali Farhadi | Hannaneh Hajishirzi
+
+https://arxiv.org/pdf/1606.04582.pdf
+'''
+
+
 import numpy as np
 from recurrentshop import RecurrentModel
 from keras.models import Model
@@ -48,8 +56,8 @@ def QRN():
 #############################################################
 # Build Model
 #############################################################
-stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len), name='Nemo')
-queries = Input(batch_shape=(batch_size, query_len), name='Po')
+stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len))
+queries = Input(batch_shape=(batch_size, query_len))
 
 story_PE_matrix = get_PE_matrix(sentence_len, embedding_dim)
 query_PE_matrix = get_PE_matrix(query_len, embedding_dim)
@@ -71,7 +79,7 @@ mq = concatenate([m, q])
 a = QRN()(mq)
 a = Lambda(lambda x: x[:, sentence_len - 1, :])(a)
 a = Dense(vocab_size)(a)
-a = Activation('softmax', name='Steve-Rogers')(a)
+a = Activation('softmax')(a)
 
-model = Model(inputs=[stories, queries], outputs=[a], name='Mufasa')
+model = Model(inputs=[stories, queries], outputs=[a])
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
