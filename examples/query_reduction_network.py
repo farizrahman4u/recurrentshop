@@ -3,6 +3,8 @@ Query Reduction Networks for Question Answering
 Minjoon Seo | Sewon Min | Ali Farhadi | Hannaneh Hajishirzi
 
 https://arxiv.org/pdf/1606.04582.pdf
+
+Experiment run on BaBI task 1
 '''
 
 
@@ -11,18 +13,67 @@ from recurrentshop import RecurrentModel
 from keras.models import Model
 from keras.layers import Activation, Dense, Embedding, Input, Lambda
 from keras.layers import add, concatenate, multiply
+from keras.layers.wrappers import Bidirectional
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.initializers import Constant
 from keras import backend as K
-
+import tarfile
+import urllib
+import os
 
 # Hyperparameters
-batch_size = 128
-query_len = 30
-story_len = 500
-sentence_len = 25
-lines_per_story = 20
-embedding_dim = 64
-vocab_size = 10000
+batch_size = 50
+query_len = 4
+sentence_len = 6
+lines_per_story = 2
+embedding_dim = 50
+vocab_size = 34
 
+tokenizer = Tokenizer()
+
+
+def _download_data(path):
+    url = "http://www.thespermwhale.com/jaseweston/babi/tasks_1-20_v1-2.tar.gz"
+    directory = os.path.dirname(path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    file_path = os.path.join(directory, 'bAbI-Tasks-1-20.tar.gz')
+    urllib.urlretrieve(url, file_path)
+    with tarfile.open(file_path) as tarf:
+        tarf.extractall()
+
+
+def load_data():
+    recurrentshop_directory = os.path.expanduser('~') + '/.recurrentshop'
+    datasets_directory = recurrentshop_directory + '/datasets'
+    babi_path = os.path.join(recurrentshop_directory, datasets_directory, 'tasks_1-20_v1-2')
+    if not os.path.exists(babi_path):
+        _download_data(babi_path)
+
+    train_path = os.path.join(babi_path, 'en', 'qa1_single-supporting-fact_train.txt')
+    test_path = os.path.join(babi_path, 'en', 'qa1_single-supporting-fact_test.txt')
+
+    def fetch_file(path):
+        with open(path, 'r') as f:
+            text = f.readlines()
+        tokenizer.fit_on_texts(text)
+        text = tokenizer.texts_to_sequences(text)
+        stories = []
+        queries = []
+        answers = []
+        for i in range(0, len(text), 3):
+            story = np.append(pad_sequences([text[i][1:]], maxlen=sentence_len)[0],
+                              pad_sequences([text[i+1][1:]], maxlen=sentence_len)[0])
+            stories.append(story)
+            queries.append(text[i+2][:-2])
+            answers.append(text[i+2][-2])
+        return (np.asarray(stories), np.asarray(queries), np.asarray(answers))
+
+    train_data = fetch_file(train_path)
+    test_data = fetch_file(test_path)
+
+    return train_data, test_data
 
 # Get positional encoder matrix
 def get_PE_matrix(sentence_len, embedding_dim):
@@ -34,52 +85,72 @@ def get_PE_matrix(sentence_len, embedding_dim):
     return K.constant(pe_matrix)
 
 
-#############################################################
+#
 # Build QRN Cell
-#############################################################
-def QRN():
+#
+
+def QRNcell():
     xq = Input(batch_shape=(batch_size, embedding_dim*2))
     # Split into context and query
-    xt = Lambda(lambda x, dim: x[:, :dim], arguments={'dim':embedding_dim})(xq)
-    qt = Lambda(lambda x, dim: x[:, dim:], arguments={'dim':embedding_dim})(xq)
-    
+    xt = Lambda(lambda x, dim: x[:,:dim], arguments={'dim':embedding_dim})(xq)
+    qt = Lambda(lambda x, dim: x[:,dim:], arguments={'dim':embedding_dim})(xq)
+
     h_tm1 = Input(batch_shape=(batch_size, embedding_dim))
 
-    zt = Dense(1, activation='sigmoid')(multiply([xt, qt]))
+    zt = Dense(1, activation='sigmoid', bias_initializer=Constant(2.5))(multiply([xt, qt]))
     ch = Dense(embedding_dim, activation='tanh')(concatenate([xt, qt], axis=-1))
-    ht = add([multiply([zt, ch]), multiply([Lambda(lambda x: 1-x)(zt), h_tm1])])
-    return RecurrentModel(input=xq, output=ht,
-                          initial_states=[h_tm1],
-                          final_states=[ht],
-                          return_sequences=True)
+    rt = Dense(1, activation='sigmoid')(multiply([xt, qt]))
+    ht = add([multiply([zt, ch, rt]), multiply([Lambda(lambda x: 1-x)(zt), h_tm1])])
+    return RecurrentModel(input=xq, output=ht, initial_states=[h_tm1], final_states=[ht], return_sequences=True)
 
-#############################################################
+
+#
+# Load data
+#
+
+train_data, test_data = load_data()
+
+train_stories, train_queries, train_answers = train_data
+valid_stories, valid_queries, valid_answers = test_data
+
+#
 # Build Model
-#############################################################
-stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len))
-queries = Input(batch_shape=(batch_size, query_len))
+#
+
+stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len), name='Nemo')
+queries = Input(batch_shape=(batch_size, query_len), name='Po')
 
 story_PE_matrix = get_PE_matrix(sentence_len, embedding_dim)
 query_PE_matrix = get_PE_matrix(query_len, embedding_dim)
 
-m = Embedding(vocab_size, embedding_dim)(stories)
+QRN = Bidirectional(QRNcell(), merge_mode='sum')
+embedding = Embedding(vocab_size+1, embedding_dim)
+m = embedding(stories)
 m = Lambda(lambda x: K.reshape(x, (batch_size* lines_per_story, sentence_len, embedding_dim)))(m)
+
 m = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size*lines_per_story, axis=0), arguments={'const':story_PE_matrix})(m)
 m = Lambda(lambda x: K.reshape(x, (batch_size, -1, sentence_len, embedding_dim)))(m)
-m = Lambda(lambda x: K.sum(x, axis=1))(m)
+m = Lambda(lambda x: K.sum(x, axis=2))(m)
 
-q = Embedding(vocab_size, embedding_dim)(queries)
+q = embedding(queries)
 # Add PE encoder matrix
 q = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size, axis=0), arguments={'const':query_PE_matrix})(q)
 q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True))(q)
-q = Lambda(lambda x: K.repeat_elements(x, sentence_len, axis=1))(q)
+q = Lambda(lambda x: K.repeat_elements(x, lines_per_story, axis=1))(q)
 # Input to RecModel should be a single tensor
 mq = concatenate([m, q])
-
-a = QRN()(mq)
-a = Lambda(lambda x: x[:, sentence_len - 1, :])(a)
+# Call the RecurrentModel
+a = QRN(mq)
+mq = concatenate([m, a])
+a = QRN(mq)
+a = Lambda(lambda x: x[:, lines_per_story - 1, :])(a)
 a = Dense(vocab_size)(a)
 a = Activation('softmax')(a)
 
 model = Model(inputs=[stories, queries], outputs=[a])
-model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.fit([train_stories, train_queries],train_answers,
+          batch_size=batch_size,
+          verbose=2,
+          epochs=500,
+          validation_data=([valid_stories, valid_queries], valid_answers))
