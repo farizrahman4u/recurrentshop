@@ -23,9 +23,9 @@ import urllib
 import os
 
 # Hyperparameters
-batch_size = 50
+batch_size = 20
 query_len = 4
-sentence_len = 6
+sentence_len = 7
 lines_per_story = 2
 embedding_dim = 50
 vocab_size = 34
@@ -92,15 +92,17 @@ def get_PE_matrix(sentence_len, embedding_dim):
 def QRNcell():
     xq = Input(batch_shape=(batch_size, embedding_dim*2))
     # Split into context and query
-    xt = Lambda(lambda x, dim: x[:,:dim], arguments={'dim':embedding_dim})(xq)
-    qt = Lambda(lambda x, dim: x[:,dim:], arguments={'dim':embedding_dim})(xq)
+    xt = Lambda(lambda x, dim: x[:,:dim], arguments={'dim':embedding_dim},
+                output_shape=lambda s: (s[0], s[1]/2))(xq)
+    qt = Lambda(lambda x, dim: x[:,dim:], arguments={'dim':embedding_dim},
+                output_shape=lambda s: (s[0], s[1]/2))(xq)
 
     h_tm1 = Input(batch_shape=(batch_size, embedding_dim))
 
     zt = Dense(1, activation='sigmoid', bias_initializer=Constant(2.5))(multiply([xt, qt]))
     ch = Dense(embedding_dim, activation='tanh')(concatenate([xt, qt], axis=-1))
     rt = Dense(1, activation='sigmoid')(multiply([xt, qt]))
-    ht = add([multiply([zt, ch, rt]), multiply([Lambda(lambda x: 1-x)(zt), h_tm1])])
+    ht = add([multiply([zt, ch, rt]), multiply([Lambda(lambda x: 1-x, output_shape=lambda s: s)(zt), h_tm1])])
     return RecurrentModel(input=xq, output=ht, initial_states=[h_tm1], final_states=[ht], return_sequences=True)
 
 
@@ -117,8 +119,8 @@ valid_stories, valid_queries, valid_answers = test_data
 # Build Model
 #
 
-stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len), name='Nemo')
-queries = Input(batch_shape=(batch_size, query_len), name='Po')
+stories = Input(batch_shape=(batch_size, lines_per_story*sentence_len))
+queries = Input(batch_shape=(batch_size, query_len))
 
 story_PE_matrix = get_PE_matrix(sentence_len, embedding_dim)
 query_PE_matrix = get_PE_matrix(query_len, embedding_dim)
@@ -126,16 +128,22 @@ query_PE_matrix = get_PE_matrix(query_len, embedding_dim)
 QRN = Bidirectional(QRNcell(), merge_mode='sum')
 embedding = Embedding(vocab_size+1, embedding_dim)
 m = embedding(stories)
-m = Lambda(lambda x: K.reshape(x, (batch_size* lines_per_story, sentence_len, embedding_dim)))(m)
-
-m = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size*lines_per_story, axis=0), arguments={'const':story_PE_matrix})(m)
-m = Lambda(lambda x: K.reshape(x, (batch_size, -1, sentence_len, embedding_dim)))(m)
-m = Lambda(lambda x: K.sum(x, axis=2))(m)
+m = Lambda(lambda x: K.reshape(x, (batch_size * lines_per_story, sentence_len, embedding_dim)),
+           output_shape=lambda s: (batch_size * lines_per_story, sentence_len, embedding_dim))(m)
+# Add PE encoder matrix
+m = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size * lines_per_story, axis=0), arguments={'const': story_PE_matrix},
+           output_shape=lambda s: s)(m)
+m = Lambda(lambda x: K.reshape(x, (batch_size, -1, sentence_len, embedding_dim)),
+           output_shape=lambda s: (batch_size, lines_per_story, sentence_len, embedding_dim))(m)
+m = Lambda(lambda x: K.sum(x, axis=2),
+           output_shape=lambda s: (s[0], s[1], s[3]))(m)
 
 q = embedding(queries)
 # Add PE encoder matrix
-q = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size, axis=0), arguments={'const':query_PE_matrix})(q)
-q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True))(q)
+q = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size, axis=0), arguments={'const':query_PE_matrix},
+           output_shape=lambda s: s)(q)
+q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True),
+           output_shape=lambda s: (s[0], 1, s[2]))(q)
 q = Lambda(lambda x: K.repeat_elements(x, lines_per_story, axis=1))(q)
 # Input to RecModel should be a single tensor
 mq = concatenate([m, q])
@@ -152,5 +160,5 @@ model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=
 model.fit([train_stories, train_queries],train_answers,
           batch_size=batch_size,
           verbose=2,
-          epochs=500,
+          epochs=100,
           validation_data=([valid_stories, valid_queries], valid_answers))
