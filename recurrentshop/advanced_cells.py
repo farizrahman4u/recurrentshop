@@ -56,7 +56,7 @@ class RHNCell(ExtendedRNNCell):
         tl = add([Wt(x), Rt(h_tm1)])
         tl = Activation('sigmoid')(tl)
 
-        cl = Lambda(lambda x: 1.0 - x)(tl)
+        cl = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(tl)
         cl = Activation('sigmoid')(cl)
 
         ht = add([multiply([hl, tl]), multiply([h_tm1, cl])])
@@ -79,7 +79,7 @@ class RHNCell(ExtendedRNNCell):
                         bias_regularizer=self.bias_regularizer,
                         bias_constraint=self.bias_constraint)(ht)
 
-            cli = Lambda(lambda x: 1.0 - x)(tli)
+            cli = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(tli)
             ht = add([multiply([hli, tli]), multiply([ht, cli])])
 
         return Model([x, h_tm1], [ht, Identity()(ht)])
