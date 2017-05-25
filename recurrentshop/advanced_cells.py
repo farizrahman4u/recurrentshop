@@ -83,4 +83,3 @@ class RHNCell(ExtendedRNNCell):
             ht = add([multiply([hli, tli]), multiply([ht, cli])])
 
         return Model([x, h_tm1], [ht, Identity()(ht)])
-        
