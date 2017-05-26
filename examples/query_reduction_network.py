@@ -83,7 +83,7 @@ def get_PE_matrix(sentence_len, embedding_dim):
         for j in range(sentence_len):
             pe_matrix[k][j] = (1 - float(j + 1) / float(sentence_len)) - float(k + 1) / float(embedding_dim) * (1 - (2 * float(j + 1)) / float(embedding_dim))
     pe_matrix = np.expand_dims(pe_matrix.T, 0)
-    return K.constant(pe_matrix)
+    return pe_matrix
 
 
 #
@@ -124,14 +124,13 @@ queries = Input(batch_shape=(batch_size, query_len))
 
 story_PE_matrix = get_PE_matrix(sentence_len, embedding_dim)
 query_PE_matrix = get_PE_matrix(query_len, embedding_dim)
-
 QRN = Bidirectional(QRNcell(), merge_mode='sum')
 embedding = Embedding(vocab_size + 1, embedding_dim)
 m = embedding(stories)
 m = Lambda(lambda x: K.reshape(x, (batch_size * lines_per_story, sentence_len, embedding_dim)),
            output_shape=lambda s: (batch_size * lines_per_story, sentence_len, embedding_dim))(m)
 # Add PE encoder matrix
-m = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size * lines_per_story, axis=0), arguments={'const': story_PE_matrix},
+m = Lambda(lambda x, const: x + np.repeat(const, batch_size * lines_per_story, axis=0), arguments={'const': story_PE_matrix},
            output_shape=lambda s: s)(m)
 m = Lambda(lambda x: K.reshape(x, (batch_size, -1, sentence_len, embedding_dim)),
            output_shape=lambda s: (batch_size, lines_per_story, sentence_len, embedding_dim))(m)
@@ -140,7 +139,7 @@ m = Lambda(lambda x: K.sum(x, axis=2),
 
 q = embedding(queries)
 # Add PE encoder matrix
-q = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size, axis=0), arguments={'const': query_PE_matrix},
+q = Lambda(lambda x, const: x + np.repeat(const, batch_size, axis=0), arguments={'const': query_PE_matrix},
            output_shape=lambda s: s)(q)
 q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True),
            output_shape=lambda s: (s[0], 1, s[2]))(q)
