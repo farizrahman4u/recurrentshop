@@ -144,14 +144,16 @@ q = Lambda(lambda x, const: x + K.repeat_elements(const, batch_size, axis=0), ar
            output_shape=lambda s: s)(q)
 q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True),
            output_shape=lambda s: (s[0], 1, s[2]))(q)
-q = Lambda(lambda x: K.repeat_elements(x, lines_per_story, axis=1))(q)
+q = Lambda(lambda x: K.repeat_elements(x, lines_per_story, axis=1),
+           output_shape=lambda s: (s[0], lines_per_story, s[2]))(q)
 # Input to RecModel should be a single tensor
 mq = concatenate([m, q])
 # Call the RecurrentModel
 a = QRN(mq)
 mq = concatenate([m, a])
 a = QRN(mq)
-a = Lambda(lambda x: x[:, lines_per_story - 1, :])(a)
+a = Lambda(lambda x: x[:, lines_per_story - 1, :],
+           output_shape=lambda s: (s[0], s[2]))(a)
 a = Dense(vocab_size)(a)
 a = Activation('softmax')(a)
 
