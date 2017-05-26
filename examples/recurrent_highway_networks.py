@@ -13,6 +13,7 @@ and other datasets
 '''
 
 from recurrentshop import RecurrentModel
+from recurrentshop.advanced_cells import RHNCell
 from keras.models import Model
 from keras.layers import Dense, Dropout, Input, Lambda
 from keras.layers import add, multiply
@@ -33,9 +34,9 @@ import zipfile
 # Hyperparameters
 #
 batch_size = 128
-timesteps = 100
+timesteps = 10
 learning_rate = 0.2
-hidden_dim = 1000
+hidden_dim = 10
 recurrence_depth = 10
 weight_decay = 1e-7
 lr_decay = 1.04
@@ -65,7 +66,7 @@ def load_text():
     FILE_PATH = os.path.join(recurrentshop_directory, datasets_directory, 'text8')
     if not os.path.exists(FILE_PATH):
         download_data(FILE_PATH)
-    raw_text = open(FILE_PATH, 'r').read()
+    raw_text = open(FILE_PATH, 'r').read(100000)
 
     tokenizer = Tokenizer(filters='', char_level=True, lower=False)
     tokenizer.fit_on_texts(raw_text)
@@ -100,80 +101,26 @@ def generate_batch(text, batch_size, num_steps):
         yield (x, y)
 
 
-def _recurrent_transition(hidden_dim):
-    s_lm1 = Input((hidden_dim, ))
-
-    Rh = Dense(hidden_dim,
-               activation='tanh',
-               kernel_initializer=weight_init,
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-
-    Rt = Dense(hidden_dim,
-               activation='sigmoid',
-               kernel_initializer=weight_init,
-               bias_initializer=Constant(transform_bias),
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-
-    hl = Rh(s_lm1)
-    tl = Rt(s_lm1)
-    cl = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(tl)
-
-    sl = add([multiply([hl, tl]), multiply([s_lm1, cl])])
-    return Model(inputs=[s_lm1], outputs=[sl])
-
-
 def RHN(input_dim, hidden_dim, depth):
-    x = Input((input_dim, ))
-    s_tm1 = Input((hidden_dim, ))
-
-    #Dropout mask
-    hid_mask = Input((hidden_dim, ))
-    hid_mask_out = Lambda(lambda x: x + 0, output_shape=lambda s: s)(hid_mask)
-
-    Rh = Dense(hidden_dim,
-               kernel_initializer=weight_init,
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-    Rt = Dense(hidden_dim,
-               kernel_initializer=weight_init,
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-    Wh = Dense(hidden_dim,
-               kernel_initializer=weight_init,
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-    Wt = Dense(hidden_dim,
-               kernel_initializer=weight_init,
-               bias_initializer=Constant(transform_bias),
-               kernel_regularizer=l2(weight_decay),
-               kernel_constraint=max_norm(gradient_clip))
-
-    hl = add([Wh(x), Rh(s_tm1)])
-    tl = add([Wt(x), Rt(s_tm1)])
-    cl = Lambda(lambda x: 1.0 - x, lambda s: s)(tl)
-
-    hl = Activation('tanh')(hl)
-    tl = Activation('sigmoid')(tl)
-    cl = Activation('sigmoid')(cl)
-
-    st = add([multiply([hl, tl]), multiply([s_tm1, cl])])
-    st = multiply([hid_mask, st])
-    for _ in range(depth-1):
-        st = _recurrent_transition(hidden_dim)(st)
-
-    RHN_model = RecurrentModel(input=x, output=st,
-                               initial_states=[hid_mask, s_tm1],
-                               final_states=[hid_mask_out, st])
     # Wrapped model
-    inp = Input(batch_shape=(batch_size, timesteps, input_dim))
-    hid_state = Lambda(lambda x: x[:, 0, :1] * 0., output_shape=lambda s: (s[0], 1))(inp)
-    hid_state = Lambda(lambda x, dim: K.tile(x, (1, dim)), arguments={'dim': hidden_dim}, output_shape=(hidden_dim,))(hid_state)
-    drop_mask = Lambda(K.ones_like, output_shape=lambda s: s)(hid_state)
-    drop_mask = Dropout(hidden_drop)(drop_mask)
-    y = RHN_model(inp, initial_state=[drop_mask, hid_state])
-    return Model(inp, y)
+    inp = Input(batch_shape=(batch_size, input_dim))
+    state = Input(batch_shape=(batch_size, hidden_dim))
+    drop_mask = Input(batch_shape=(batch_size, hidden_dim))
+    # To avoid all zero mask causing gradient to vanish
+    inverted_drop_mask = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(drop_mask)
+    drop_mask_2 = Lambda(lambda x: x + 0., output_shape=lambda s: s)(inverted_drop_mask)
+    dropped_state = multiply([state, inverted_drop_mask])
+    y, new_state = RHNCell(units=hidden_dim, recurrence_depth=depth,
+                           kernel_initializer=weight_init,
+                           kernel_regularizer=l2(weight_decay),
+                           kernel_constraint=max_norm(gradient_clip),
+                           bias_initializer=Constant(transform_bias),
+                           recurrent_initializer=weight_init,
+                           recurrent_regularizer=l2(weight_decay),
+                           recurrent_constraint=max_norm(gradient_clip))([inp, dropped_state])
+    return RecurrentModel(input=inp, output=y,
+                          initial_states=[state, drop_mask],
+                          final_states=[new_state, drop_mask_2])
 
 
 # lr decay Scheduler
@@ -191,7 +138,18 @@ inp = Input(batch_shape=(batch_size, timesteps))
 x = Dropout(embedding_drop)(inp)
 x = Embedding(vocab_size+1, embedding_dim, input_length=timesteps)(inp)
 x = Dropout(input_drop)(x)
-x = RHN(embedding_dim, hidden_dim, recurrence_depth)(x)
+
+# Create a dropout mask for variational dropout
+drop_mask = Lambda(lambda x: x[:, 0, :1] * 0., output_shape=lambda s: (s[0], 1))(x)
+
+drop_mask = Lambda(lambda x, dim: K.tile(x, (1, dim)),
+                   arguments={'dim': hidden_dim},
+                   output_shape=(hidden_dim,))(drop_mask)
+drop_mask = Lambda(K.ones_like, output_shape=lambda s: s)(drop_mask)
+drop_mask = Dropout(hidden_drop)(drop_mask)
+zero_init = Lambda(K.zeros_like, output_shape=lambda s:s)(drop_mask)
+
+x = RHN(embedding_dim, hidden_dim, recurrence_depth)(x, initial_state=[zero_init, drop_mask])
 x = Dropout(output_drop)(x)
 out = Dense(vocab_size+1, activation='softmax')(x)
 
