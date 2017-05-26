@@ -1,6 +1,6 @@
 from keras.models import Model
 from keras.layers import *
-from cells import ExtendedRNNCell
+from cells import *
 
 
 class RHNCell(ExtendedRNNCell):
@@ -63,6 +63,7 @@ class RHNCell(ExtendedRNNCell):
 
         for _ in range(self.recurrence_depth - 1):
             hli = Dense(output_dim,
+                        activation='tanh',
                         kernel_initializer=self.recurrent_initializer,
                         kernel_regularizer=self.recurrent_regularizer,
                         kernel_constraint=self.recurrent_constraint,
@@ -71,6 +72,7 @@ class RHNCell(ExtendedRNNCell):
                         bias_regularizer=self.bias_regularizer,
                         bias_constraint=self.bias_constraint)(ht)
             tli = Dense(output_dim,
+                        activation='sigmoid',
                         kernel_initializer=self.recurrent_initializer,
                         kernel_regularizer=self.recurrent_regularizer,
                         kernel_constraint=self.recurrent_constraint,
@@ -80,6 +82,7 @@ class RHNCell(ExtendedRNNCell):
                         bias_constraint=self.bias_constraint)(ht)
 
             cli = Lambda(lambda x: 1.0 - x, output_shape=lambda s: s)(tli)
+            cli = Activation('sigmoid')(cli)
             ht = add([multiply([hli, tli]), multiply([ht, cli])])
 
         return Model([x, h_tm1], [ht, Identity()(ht)])
