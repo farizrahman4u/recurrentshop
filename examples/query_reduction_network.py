@@ -132,20 +132,20 @@ m = embedding(stories)
 m = Lambda(lambda x: K.reshape(x, (batch_size * lines_per_story, sentence_len, embedding_dim)),
            output_shape=lambda s: (batch_size * lines_per_story, sentence_len, embedding_dim))(m)
 # Add PE encoder matrix
-m = Lambda(lambda x, const: x + np.repeat(const, batch_size * lines_per_story, axis=0), arguments={'const': story_PE_matrix},
+m = Lambda(lambda x, const: x + np.tile(const, (batch_size * lines_per_story, 1, 1)), arguments={'const': story_PE_matrix},
            output_shape=lambda s: s)(m)
-m = Lambda(lambda x: K.reshape(x, (batch_size, -1, sentence_len, embedding_dim)),
+m = Lambda(lambda x: K.reshape(x, (batch_size, lines_per_story, sentence_len, embedding_dim)),
            output_shape=lambda s: (batch_size, lines_per_story, sentence_len, embedding_dim))(m)
 m = Lambda(lambda x: K.sum(x, axis=2),
            output_shape=lambda s: (s[0], s[1], s[3]))(m)
 
 q = embedding(queries)
 # Add PE encoder matrix
-q = Lambda(lambda x, const: x + np.repeat(const, batch_size, axis=0), arguments={'const': query_PE_matrix},
+q = Lambda(lambda x, const: x + np.tile(const, (batch_size, 1, 1)), arguments={'const': query_PE_matrix},
            output_shape=lambda s: s)(q)
 q = Lambda(lambda x: K.sum(x, axis=1, keepdims=True),
            output_shape=lambda s: (s[0], 1, s[2]))(q)
-q = Lambda(lambda x: K.repeat_elements(x, lines_per_story, axis=1),
+q = Lambda(lambda x: K.tile(x, (1, lines_per_story, 1)),
            output_shape=lambda s: (s[0], lines_per_story, s[2]))(q)
 # Input to RecModel should be a single tensor
 mq = concatenate([m, q])
