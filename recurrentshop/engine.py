@@ -100,6 +100,8 @@ class RNNCell(Layer):
             self.model = self.build_model(kwargs['batch_input_shape'])
         elif 'input_shape' in kwargs:
             self.model = self.build_model((None,) + kwargs['input_shape'])
+        if not hasattr(self, 'input_ndim'):
+        	self.input_ndim = 2
         super(RNNCell, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -118,7 +120,7 @@ class RNNCell(Layer):
         if hasattr(self, 'model'):
             model = self.model
         else:
-            model = self.build_model((None, 2))  # Don't judge. It was 3 in the morning.
+            model = self.build_model((None,) + (2,) * (self.input_ndim - 1))  # Don't judge. It was 3 in the morning.
         model_input = model.input
         if type(model_input) is list:
             return len(model_input[1:])
