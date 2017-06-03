@@ -456,10 +456,12 @@ class RecurrentModel(Recurrent):
                 else:
                     inputs.append(initial_state)
             else:
-                initial_state = self._get_optional_input_placeholder('initial_state', self.num_states)
+            	if self.readout:
+            		initial_state = self._get_optional_input_placeholder('initial_state', self.num_states - 1)
+            	else:
+                	initial_state = self._get_optional_input_placeholder('initial_state', self.num_states)
                 inputs += _to_list(initial_state)
             if self.readout:
-                req_num_inputs += 1
                 if initial_readout is None:
                     initial_readout = self._get_optional_input_placeholder('initial_readout')
                 inputs.append(initial_readout)
@@ -468,7 +470,7 @@ class RecurrentModel(Recurrent):
                 if ground_truth is None:
                     ground_truth = self._get_optional_input_placeholder('ground_truth')
                 inputs.append(ground_truth)
-        assert len(inputs) == req_num_inputs
+        assert len(inputs) == req_num_inputs, "Required " + str(req_num_inputs) + " inputs, received " + str(len(inputs)) + "."
         with K.name_scope(self.name):
             if not self.built:
                 self.build(K.int_shape(inputs[0]))
@@ -503,15 +505,19 @@ class RecurrentModel(Recurrent):
             mask = mask[0]
         if self.model is None:
             raise Exception('Empty RecurrentModel.')
-        num_req_states = len(self.states)
+        num_req_states = self.num_states
+        if self.readout:
+        	num_actual_states = num_req_states - 1
+        else:
+        	num_actual_states = num_req_states
         if type(inputs) is list:
             inputs_list = inputs[:]
             inputs = inputs_list.pop(0)
-            initial_states = inputs_list[:len(self.states)]
+            initial_states = inputs_list[:num_actual_states]
             if len(initial_states) > 0:
                 if self._is_optional_input_placeholder(initial_states[0]):
                     initial_states = self.get_initial_state(inputs)
-            inputs_list = inputs_list[len(self.states):]
+            inputs_list = inputs_list[num_actual_states:]
             if self.readout:
                 initial_readout = inputs_list.pop(0)
                 if self.teacher_force:
