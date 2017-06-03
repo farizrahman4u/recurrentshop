@@ -5,6 +5,9 @@ from .backend import rnn, learning_phase_scope
 from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
 
 
+if K.backend() == 'tensorflow':
+    import tensorflow as tf
+
 def _to_list(x):
     if type(x) is not list:
         x = [x]
@@ -101,7 +104,7 @@ class RNNCell(Layer):
         elif 'input_shape' in kwargs:
             self.model = self.build_model((None,) + kwargs['input_shape'])
         if not hasattr(self, 'input_ndim'):
-        	self.input_ndim = 2
+            self.input_ndim = 2
         super(RNNCell, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -456,10 +459,10 @@ class RecurrentModel(Recurrent):
                 else:
                     inputs.append(initial_state)
             else:
-            	if self.readout:
-            		initial_state = self._get_optional_input_placeholder('initial_state', self.num_states - 1)
-            	else:
-                	initial_state = self._get_optional_input_placeholder('initial_state', self.num_states)
+                if self.readout:
+                    initial_state = self._get_optional_input_placeholder('initial_state', self.num_states - 1)
+                else:
+                    initial_state = self._get_optional_input_placeholder('initial_state', self.num_states)
                 inputs += _to_list(initial_state)
             if self.readout:
                 if initial_readout is None:
@@ -507,9 +510,9 @@ class RecurrentModel(Recurrent):
             raise Exception('Empty RecurrentModel.')
         num_req_states = self.num_states
         if self.readout:
-        	num_actual_states = num_req_states - 1
+            num_actual_states = num_req_states - 1
         else:
-        	num_actual_states = num_req_states
+            num_actual_states = num_req_states
         if type(inputs) is list:
             inputs_list = inputs[:]
             inputs = inputs_list.pop(0)
@@ -549,9 +552,12 @@ class RecurrentModel(Recurrent):
             if self.teacher_force:
                 if ground_truth is None or self._is_optional_input_placeholder(ground_truth):
                     raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
-                # counter = K.zeros((1,), dtype='int32') 
-                counter = K.zeros((1,))
-                counter = K.cast(counter, 'int32')
+                if K.backend() == 'tensorflow':
+                    with tf.control_dependencies(None):
+                        counter = K.zeros((1,))
+                else:
+                    counter = K.zeros((1,))
+                counter = K.cast(counter, 'int32')  
                 initial_states.insert(-1, counter)
                 initial_states[-2]
                 initial_states.insert(-1, ground_truth)
