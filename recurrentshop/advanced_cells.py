@@ -25,7 +25,7 @@ class RHNCell(ExtendedRNNCell):
 
         Rt = Dense(output_dim,
                    kernel_initializer=self.recurrent_initializer,
-                   kernel_regularizer=self.recurrent_regularizer, 
+                   kernel_regularizer=self.recurrent_regularizer,
                    kernel_constraint=self.recurrent_constraint,
                    use_bias=self.use_bias,
                    bias_initializer=self.bias_initializer,

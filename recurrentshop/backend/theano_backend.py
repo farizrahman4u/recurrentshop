@@ -5,15 +5,15 @@ import theano
 
 class learning_phase_scope(object):
 
-	def __init__(self, value):
-		self.value = value
+    def __init__(self, value):
+        self.value = value
 
-	def __enter__(self):
-		self.learning_phase_placeholder = K.learning_phase()
-		K.set_learning_phase(self.value)
+    def __enter__(self):
+        self.learning_phase_placeholder = K.learning_phase()
+        K.set_learning_phase(self.value)
 
-	def __exit__(self, *args):
-		K._LEARNING_PHASE = self.learning_phase_placeholder
+    def __exit__(self, *args):
+        K._LEARNING_PHASE = self.learning_phase_placeholder
 
 
 def rnn(step_function, inputs, initial_states,
