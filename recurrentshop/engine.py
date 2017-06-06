@@ -693,8 +693,8 @@ class RecurrentModel(Recurrent):
                 input_shape[0] = self._remove_time_dim(input_shape[0])
             else:
                 input_shape = self._remove_time_dim(input_shape)
-        if len(self.states) > 0 and (type(input_shape) is not list or len(input_shape) == 1):
-            input_shape = _to_list(input_shape) + [K.int_shape(state) for state in self.model.input[1:]]
+        input_shape = _to_list(input_shape)
+        input_shape = [input_shape[0]] + [K.int_shape(state) for state in self.model.input[1:]]
         output_shape = self.model.compute_output_shape(input_shape)
         if type(output_shape) is list:
             output_shape = output_shape[0]
