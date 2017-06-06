@@ -1,18 +1,18 @@
 from recurrentshop import RecurrentSequential
 from recurrentshop.cells import *
+from recurrentshop.advanced_cells import *
 from keras.models import Model
-from keras.layers import Activation, Dense, Input
+from keras.layers import Input
 from keras.utils.test_utils import keras_test
 import numpy as np
 
 
 @keras_test
-def test_sequential(	):
+def test_sequential():
     rnn = RecurrentSequential()
-    rnn.add(LSTMCell(7, input_dim=5))
+    rnn.add(LSTMCell(output_dim=7, input_dim=5))
     rnn.add(SimpleRNNCell(8))
     rnn.add(GRUCell(10))
-
 
     a = Input((7, 5))
     b = rnn(a)
@@ -22,6 +22,7 @@ def test_sequential(	):
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
     model.predict(np.random.random((12, 7, 5)))
+
 
 @keras_test
 def test_state_initializer():
@@ -30,7 +31,6 @@ def test_state_initializer():
     rnn.add(SimpleRNNCell(8))
     rnn.add(GRUCell(10))
 
-
     a = Input((7, 5))
     b = rnn(a)
 
@@ -39,6 +39,7 @@ def test_state_initializer():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
     model.predict(np.random.random((12, 7, 5)))
+
 
 @keras_test
 def test_state_initializer_as_list():
@@ -47,7 +48,6 @@ def test_state_initializer_as_list():
     rnn.add(SimpleRNNCell(8))
     rnn.add(GRUCell(10))
 
-
     a = Input((7, 5))
     b = rnn(a)
 
@@ -56,6 +56,7 @@ def test_state_initializer_as_list():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
     model.predict(np.random.random((12, 7, 5)))
+
 
 @keras_test
 def test_unroll():
@@ -72,6 +73,7 @@ def test_unroll():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
     model.predict(np.random.random((12, 7, 5)))
+
 
 @keras_test
 def test_state_sync():
@@ -125,6 +127,7 @@ def test_decode():
     model.fit((np.random.random((12, 5))), np.random.random((12, 7, 10)))
     model.predict(np.random.random((12, 5)))
 
+
 @keras_test
 def test_readout_state_sync():
     a = Input((5,))
@@ -141,6 +144,7 @@ def test_readout_state_sync():
     model.fit((np.random.random((12, 5))), np.random.random((12, 7, 10)))
     model.predict(np.random.random((12, 5)))
 
+
 @keras_test
 def test_decode_unroll():
     a = Input((5,))
@@ -156,6 +160,7 @@ def test_decode_unroll():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 5))), np.random.random((12, 7, 10)))
     model.predict(np.random.random((12, 5)))
+
 
 @keras_test
 def test_decode_unroll_state_sync():
@@ -192,6 +197,7 @@ def test_readout():
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 5)))
     model.predict(np.random.random((12, 7, 5)))
 
+
 @keras_test
 def test_readout_unroll():
     a = Input((7, 5))
@@ -207,6 +213,7 @@ def test_readout_unroll():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 5)))
     model.predict(np.random.random((12, 7, 5)))
+
 
 @keras_test
 def test_readout_state_sync():
@@ -224,6 +231,7 @@ def test_readout_state_sync():
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 5)))
     model.predict(np.random.random((12, 7, 5)))
 
+
 @keras_test
 def test_readout_state_sync_unroll():
     a = Input((7, 5))
@@ -239,7 +247,6 @@ def test_readout_state_sync_unroll():
     model.compile(loss='mse', optimizer='sgd')
     model.fit((np.random.random((12, 7, 5))), np.random.random((12, 5)))
     model.predict(np.random.random((12, 7, 5)))
-
 
 
 # Decoder + readout
@@ -261,6 +268,8 @@ def test_decoder_readout():
     model.predict(np.random.random((12, 5)))
 
 # teacher forcing
+
+
 @keras_test
 def test_teacher_force():
     a = Input((7, 5))
@@ -279,3 +288,38 @@ def test_teacher_force():
     model.compile(loss='mse', optimizer='sgd')
     model.fit([np.random.random((12, 7, 5)), np.random.random((12, 7, 5))], np.random.random((12, 5)))
     model.predict([np.random.random((12, 7, 5))] * 2)
+
+
+@keras_test
+def test_serialisation():
+    rnn = RecurrentSequential()
+    rnn.add(LSTMCell(output_dim=7, input_dim=5))
+    rnn.add(SimpleRNNCell(8))
+    rnn.add(GRUCell(10))
+
+    rnn_config = rnn.get_config()
+    recovered_rnn = RecurrentSequential.from_config(rnn_config)
+
+    a = Input((7, 5))
+    b = recovered_rnn(a)
+
+    model = Model(a, b)
+
+    model.compile(loss='mse', optimizer='sgd')
+    model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
+    model.predict(np.random.random((12, 7, 5)))
+
+
+@keras_test
+def test_advanced_cells():
+    rnn = RecurrentSequential()
+    rnn.add(RHNCell(10, recurrence_depth=2, input_dim=5))
+
+    a = Input((7, 5))
+    b = rnn(a)
+
+    model = Model(a, b)
+
+    model.compile(loss='mse', optimizer='sgd')
+    model.fit((np.random.random((12, 7, 5))), np.random.random((12, 10)))
+    model.predict(np.random.random((12, 7, 5)))
