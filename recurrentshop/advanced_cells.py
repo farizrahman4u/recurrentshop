@@ -5,8 +5,9 @@ from cells import *
 
 class RHNCell(ExtendedRNNCell):
 
-    def __init__(self, recurrence_depth, **kwargs):
+    def __init__(self, units, recurrence_depth, **kwargs):
         self.recurrence_depth = recurrence_depth
+        kwargs['units'] = units
         super(RHNCell, self).__init__(**kwargs)
 
     def build_model(self, input_shape):
