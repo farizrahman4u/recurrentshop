@@ -5,8 +5,9 @@ from cells import *
 
 class RHNCell(ExtendedRNNCell):
 
-    def __init__(self, recurrence_depth, **kwargs):
+    def __init__(self, units, recurrence_depth, **kwargs):
         self.recurrence_depth = recurrence_depth
+        kwargs['units'] = units
         super(RHNCell, self).__init__(**kwargs)
 
     def build_model(self, input_shape):
@@ -25,7 +26,7 @@ class RHNCell(ExtendedRNNCell):
 
         Rt = Dense(output_dim,
                    kernel_initializer=self.recurrent_initializer,
-                   kernel_regularizer=self.recurrent_regularizer, 
+                   kernel_regularizer=self.recurrent_regularizer,
                    kernel_constraint=self.recurrent_constraint,
                    use_bias=self.use_bias,
                    bias_initializer=self.bias_initializer,
