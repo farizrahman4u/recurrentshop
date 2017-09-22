@@ -487,6 +487,7 @@ class RecurrentModel(Recurrent):
                     del self._initial_weights
                     self._initial_weights = None
             previous_mask = _collect_previous_mask(inputs[:1])
+            user_kwargs = kwargs.copy()
             if not _is_all_none(previous_mask):
                 if 'mask' in inspect.getargspec(self.call).args:
                     if 'mask' not in kwargs:
@@ -498,7 +499,7 @@ class RecurrentModel(Recurrent):
             self._add_inbound_node(input_tensors=inputs, output_tensors=output,
                                    input_masks=previous_mask, output_masks=output_mask,
                                    input_shapes=input_shape, output_shapes=output_shape,
-                                   arguments=kwargs)
+                                   arguments=user_kwargs)
             if hasattr(self, 'activity_regularizer') and self.activity_regularizer is not None:
                 regularization_losses = [self.activity_regularizer(x) for x in _to_list(output)]
                 self.add_loss(regularization_losses, _to_list(inputs))
