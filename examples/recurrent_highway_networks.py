@@ -56,7 +56,7 @@ def download_data(path):
     if not os.path.exists(directory):
         os.makedirs(directory)
     urllib.urlretrieve(url, path)
-    with zipfile.Zipfile(path) as zf:
+    with zipfile.ZipFile(path) as zf:
         zf.extractall(path=path)
 
 
