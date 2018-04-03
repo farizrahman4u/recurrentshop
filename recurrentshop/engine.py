@@ -839,13 +839,13 @@ class RecurrentModel(Recurrent):
                     self._optional_input_placeholders[name] = self._get_optional_input_placeholder()
             return self._optional_input_placeholders[name]
         if num == 1:
-            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
             assert self._is_optional_input_placeholder(optional_input_placeholder)
             return optional_input_placeholder
         else:
             y = []
             for _ in range(num):
-                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
                 assert self._is_optional_input_placeholder(optional_input_placeholder)
                 y.append(optional_input_placeholder)
             return y
