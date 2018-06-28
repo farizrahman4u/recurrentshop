@@ -1105,7 +1105,7 @@ def _collect_previous_mask(input_tensors):
     for x in input_tensors:
         if hasattr(x, '_keras_history'):
             inbound_layer, node_index, tensor_index = x._keras_history
-            node = inbound_layer.inbound_nodes[node_index]
+            node = inbound_layer._inbound_nodes[node_index]
             mask = node.output_masks[tensor_index]
             masks.append(mask)
         else:
