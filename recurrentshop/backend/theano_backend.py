@@ -5,15 +5,15 @@ import theano
 
 class learning_phase_scope(object):
 
-	def __init__(self, value):
-		self.value = value
+    def __init__(self, value):
+        self.value = value
 
-	def __enter__(self):
-		self.learning_phase_placeholder = K.learning_phase()
-		K.set_learning_phase(self.value)
+    def __enter__(self):
+        self.learning_phase_placeholder = K.learning_phase()
+        K.set_learning_phase(self.value)
 
-	def __exit__(self, *args):
-		K._LEARNING_PHASE = self.learning_phase_placeholder
+    def __exit__(self, *args):
+        K._LEARNING_PHASE = self.learning_phase_placeholder
 
 
 def rnn(step_function, inputs, initial_states,
@@ -72,7 +72,7 @@ def rnn(step_function, inputs, initial_states,
 
     if mask is not None:
         if mask.ndim == ndim - 1:
-            mask = expand_dims(mask)
+            mask = K.expand_dims(mask)
         assert mask.ndim == ndim
         mask = mask.dimshuffle(axes)
 
@@ -88,7 +88,7 @@ def rnn(step_function, inputs, initial_states,
                 output, new_states = step_function(inputs[i], states + constants)
 
                 if len(successive_outputs) == 0:
-                    prev_output = zeros_like(output)
+                    prev_output = K.zeros_like(output)
                 else:
                     prev_output = successive_outputs[-1]
 

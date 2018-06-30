@@ -2,7 +2,9 @@ from keras.layers import *
 from keras.models import Model
 from keras import initializers
 from .backend import rnn, learning_phase_scope
-from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
+from .generic_utils import serialize_function, deserialize_function
+from keras.engine.base_layer import Node,_collect_previous_mask, _collect_input_shape
+import inspect
 
 
 if K.backend() == 'tensorflow':
@@ -173,11 +175,11 @@ class RNNCell(Layer):
 
     def add_update(self, updates, inputs=None):
         self.model.add_update(updates, inputs)
-    
+
     @property
     def uses_learning_phase(self):
         return self.model.uses_learning_phase
-    
+
     @property
     def _per_input_losses(self):
         if hasattr(self, 'model'):
@@ -208,7 +210,7 @@ class RNNCell(Layer):
     @property
     def constraints(self):
         return self.model.constraints
-    
+
     @property
     def trainable_weights(self):
         return self.model.trainable_weights
@@ -216,7 +218,7 @@ class RNNCell(Layer):
     @property
     def non_trainable_weights(self):
         return self.model.non_trainable_weights
-    
+
     def get_losses_for(self, inputs):
         return self.model.get_losses_for(inputs)
 
@@ -270,7 +272,6 @@ class RNNCellFromModel(RNNCell):
 
 
 class RecurrentModel(Recurrent):
-
 
     # INITIALIZATION
 
@@ -331,7 +332,6 @@ class RecurrentModel(Recurrent):
             state_initializer = [initializers.get(init) if init else initializers.get('zeros') for init in state_initializer]
         self.state_initializer = state_initializer
 
-
     def build(self, input_shape):
         if type(input_shape) is list:
             input_shape = input_shape[0]
@@ -351,7 +351,7 @@ class RecurrentModel(Recurrent):
         for i, j in zip(input_shape, model_input_shape):
             if i is not None and j is not None and i != j:
                 raise Exception('Model expected input with shape ' + str(model_input_shape) +
-                    '. Received input with shape ' + str(input_shape))
+                                '. Received input with shape ' + str(input_shape))
         if self.stateful:
             self.reset_states()
         self.built = True
@@ -392,7 +392,7 @@ class RecurrentModel(Recurrent):
                 states.append(z)
             else:
                 states.append(K.zeros(shape))
-        state_initializer  = self.state_initializer
+        state_initializer = self.state_initializer
         if state_initializer:
             # some initializers don't accept symbolic shapes
             for i in range(len(state_shapes)):
@@ -482,6 +482,7 @@ class RecurrentModel(Recurrent):
                     del self._initial_weights
                     self._initial_weights = None
             previous_mask = _collect_previous_mask(inputs[:1])
+            user_kwargs = kwargs.copy()
             if not _is_all_none(previous_mask):
                 if 'mask' in inspect.getargspec(self.call).args:
                     if 'mask' not in kwargs:
@@ -493,12 +494,11 @@ class RecurrentModel(Recurrent):
             self._add_inbound_node(input_tensors=inputs, output_tensors=output,
                                    input_masks=previous_mask, output_masks=output_mask,
                                    input_shapes=input_shape, output_shapes=output_shape,
-                                   arguments=kwargs)
+                                   arguments=user_kwargs)
             if hasattr(self, 'activity_regularizer') and self.activity_regularizer is not None:
                 regularization_losses = [self.activity_regularizer(x) for x in _to_list(output)]
                 self.add_loss(regularization_losses, _to_list(inputs))
         return output
-
 
     def call(self, inputs, initial_state=None, initial_readout=None, ground_truth=None, mask=None, training=None):
         # input shape: `(samples, time (padded with zeros), input_dim)`
@@ -591,22 +591,22 @@ class RecurrentModel(Recurrent):
         if self.uses_learning_phase:
             with learning_phase_scope(0):
                 last_output_test, outputs_test, states_test, updates = rnn(self.step,
-                                                 preprocessed_input,
-                                                 initial_states,
-                                                 go_backwards=self.go_backwards,
-                                                 mask=mask,
-                                                 constants=constants,
-                                                 unroll=self.unroll,
-                                                 input_length=input_length)
+                                                                           preprocessed_input,
+                                                                           initial_states,
+                                                                           go_backwards=self.go_backwards,
+                                                                           mask=mask,
+                                                                           constants=constants,
+                                                                           unroll=self.unroll,
+                                                                           input_length=input_length)
             with learning_phase_scope(1):
                 last_output_train, outputs_train, states_train, updates = rnn(self.step,
-                                                 preprocessed_input,
-                                                 initial_states,
-                                                 go_backwards=self.go_backwards,
-                                                 mask=mask,
-                                                 constants=constants,
-                                                 unroll=self.unroll,
-                                                 input_length=input_length)
+                                                                              preprocessed_input,
+                                                                              initial_states,
+                                                                              go_backwards=self.go_backwards,
+                                                                              mask=mask,
+                                                                              constants=constants,
+                                                                              unroll=self.unroll,
+                                                                              input_length=input_length)
 
             last_output = K.in_train_phase(last_output_train, last_output_test, training=training)
             outputs = K.in_train_phase(outputs_train, outputs_test, training=training)
@@ -616,13 +616,13 @@ class RecurrentModel(Recurrent):
 
         else:
             last_output, outputs, states, updates = rnn(self.step,
-                                                 preprocessed_input,
-                                                 initial_states,
-                                                 go_backwards=self.go_backwards,
-                                                 mask=mask,
-                                                 constants=constants,
-                                                 unroll=self.unroll,
-                                                 input_length=input_length)
+                                                        preprocessed_input,
+                                                        initial_states,
+                                                        go_backwards=self.go_backwards,
+                                                        mask=mask,
+                                                        constants=constants,
+                                                        unroll=self.unroll,
+                                                        input_length=input_length)
         states = list(states)
         if self.decode:
             states.pop(0)
@@ -699,14 +699,14 @@ class RecurrentModel(Recurrent):
                 input_shape[0] = self._remove_time_dim(input_shape[0])
             else:
                 input_shape = self._remove_time_dim(input_shape)
-        if len(self.states) > 0 and (type(input_shape) is not list or len(input_shape) == 1):
-            input_shape = _to_list(input_shape) + [K.int_shape(state) for state in self.model.input[1:]]
+        input_shape = _to_list(input_shape)
+        input_shape = [input_shape[0]] + [K.int_shape(state) for state in self.model.input[1:]]
         output_shape = self.model.compute_output_shape(input_shape)
         if type(output_shape) is list:
             output_shape = output_shape[0]
         if self.return_sequences:
             if self.decode:
-                output_shape = output_shape[:1] + (self.output_length,) + output_shape[1:] 
+                output_shape = output_shape[:1] + (self.output_length,) + output_shape[1:]
             else:
                 output_shape = output_shape[:1] + (self.input_spec.shape[1],) + output_shape[1:]
         if self.return_states and len(self.states) > 0:
@@ -731,14 +731,13 @@ class RecurrentModel(Recurrent):
     def updates(self):
         return self.model.updates
 
-
     def add_update(self, updates, inputs=None):
         self.model.add_update(updates, inputs)
-    
+
     @property
     def uses_learning_phase(self):
         return self.teacher_force or self.model.uses_learning_phase
-    
+
     @property
     def _per_input_losses(self):
         if hasattr(self, 'model'):
@@ -762,14 +761,14 @@ class RecurrentModel(Recurrent):
     def losses(self, val):
         if hasattr(self, 'model'):
             self.model.losses = val
-    
+
     def add_loss(self, losses, inputs=None):
         self.model.add_loss(losses, inputs)
 
     @property
     def constraints(self):
         return self.model.constraints
-    
+
     @property
     def trainable_weights(self):
         return self.model.trainable_weights
@@ -777,7 +776,7 @@ class RecurrentModel(Recurrent):
     @property
     def non_trainable_weights(self):
         return self.model.non_trainable_weights
-    
+
     def get_losses_for(self, inputs):
         return self.model.get_losses_for(inputs)
 
@@ -803,7 +802,7 @@ class RecurrentModel(Recurrent):
                   'decode': self.decode,
                   'output_length': self.output_length,
                   'return_states': self.return_states,
-                  'state_initializer': self._serialize_state_initializer()
+                  'state_initializer': self._serialize_state_initializer()            
                   }
         base_config = super(RecurrentModel, self).get_config()
         config.update(base_config)
@@ -830,7 +829,7 @@ class RecurrentModel(Recurrent):
             output = model.output[0]
             final_states = model.output[1:]
         else:
-            output  = model.output
+            output = model.output
             final_states = None
         return cls(input, output, initial_states, final_states, **config)
 
@@ -842,17 +841,17 @@ class RecurrentModel(Recurrent):
             if name not in self._optional_input_placeholders:
                 if num > 1:
                     self._optional_input_placeholders[name] = [self._get_optional_input_placeholder() for _ in range(num)]
-                else: 
+                else:
                     self._optional_input_placeholders[name] = self._get_optional_input_placeholder()
             return self._optional_input_placeholders[name]
         if num == 1:
-            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
             assert self._is_optional_input_placeholder(optional_input_placeholder)
             return optional_input_placeholder
         else:
             y = []
             for _ in range(num):
-                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
                 assert self._is_optional_input_placeholder(optional_input_placeholder)
                 y.append(optional_input_placeholder)
             return y
@@ -866,7 +865,7 @@ class RecurrentModel(Recurrent):
 
 class RecurrentSequential(RecurrentModel):
 
-    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, readout=False, readout_activation='linear',teacher_force=False, state_initializer=None, **kwargs):
+    def __init__(self, state_sync=False, decode=False, output_length=None, return_states=False, readout=False, readout_activation='linear', teacher_force=False, state_initializer=None, **kwargs):
         self.state_sync = state_sync
         self.cells = []
         if decode and output_length is None:
@@ -940,10 +939,10 @@ class RecurrentSequential(RecurrentModel):
             del self.model
         # Try and get batch size for initializer
         if not hasattr(self, 'batch_size'):
-                if hasattr(self, 'batch_input_shape'):
-                    batch_size = self.batch_input_shape[0]
-                    if batch_size is not None:
-                        self.batch_size = batch_size
+            if hasattr(self, 'batch_input_shape'):
+                batch_size = self.batch_input_shape[0]
+                if batch_size is not None:
+                    self.batch_size = batch_size
         if self.state_sync:
             if type(input_shape) is list:
                 x_shape = input_shape[0]
@@ -996,7 +995,7 @@ class RecurrentSequential(RecurrentModel):
                 final_states = []
                 for cell in self.cells:
                     if _is_rnn_cell(cell):
-                        cell_initial_states = initial_states[len(final_states) : len(final_states) + cell.num_states]
+                        cell_initial_states = initial_states[len(final_states): len(final_states) + cell.num_states]
                         cell_in = [output] + cell_initial_states
                         cell_out = _to_list(cell(cell_in))
                         output = cell_out[0]
@@ -1043,9 +1042,9 @@ class RecurrentSequential(RecurrentModel):
                 input_readout_merged = multiply([input, readout])
             elif self.readout in ['avg', 'average']:
                 input_readout_merged = average([input, readout])
-            elif self.readout in ['max, maximum']:
+            elif self.readout in ['max', 'maximum']:
                 input_readout_merged = maximum([input, readout])
-            elif self.readout is 'readout_only':
+            elif self.readout == 'readout_only':
                 input_readout_merged = readout
             initial_states = [Input(batch_shape=K.int_shape(s)) for s in initial_states]
             output = _to_list(self.model([input_readout_merged] + initial_states))
@@ -1078,6 +1077,7 @@ class RecurrentSequential(RecurrentModel):
             cell = deserialize(cell_config, custom_objects)
             rs.add(cell)
         return rs
+
 
 # Legacy
 RecurrentContainer = RecurrentSequential
