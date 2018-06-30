@@ -147,7 +147,7 @@ See docs/ directory for more features.
 # Installation
 
 ```shell
-git clone https://www.github.com/pyrestone/recurrentshop.git
+git clone https://www.github.com/farizrahman4u/recurrentshop.git
 cd recurrentshop
 python setup.py install
 ```
