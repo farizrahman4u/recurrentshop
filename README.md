@@ -55,7 +55,8 @@ print(out.shape)#->(1,10)
 # to get one output per input sequence element, set return_sequences=True
 rnn2 = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, final_states=[h_t],return_sequences=True)
 
-# Time_steps can also be None
+# Time_steps can also be None to allow variable Sequence Length
+# Note that this is not compatible with unroll=True
 x = Input(shape=(None ,5))
 y = rnn2(x)
 model2 = Model(x, y)
