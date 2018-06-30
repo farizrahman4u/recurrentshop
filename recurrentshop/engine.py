@@ -7,6 +7,9 @@ from keras.engine.base_layer import Node,_collect_previous_mask, _collect_input_
 import inspect
 
 
+if K.backend() == 'tensorflow':
+    import tensorflow as tf
+
 def _to_list(x):
     if type(x) is not list:
         x = [x]
@@ -549,9 +552,12 @@ class RecurrentModel(Recurrent):
             if self.teacher_force:
                 if ground_truth is None or self._is_optional_input_placeholder(ground_truth):
                     raise Exception('ground_truth must be provided for RecurrentModel with teacher_force=True.')
-                # counter = K.zeros((1,), dtype='int32')
-                counter = K.zeros((1,))
-                counter = K.cast(counter, 'int32')
+                if K.backend() == 'tensorflow':
+                    with tf.control_dependencies(None):
+                        counter = K.zeros((1,))
+                else:
+                    counter = K.zeros((1,))
+                counter = K.cast(counter, 'int32')  
                 initial_states.insert(-1, counter)
                 initial_states[-2]
                 initial_states.insert(-1, ground_truth)
