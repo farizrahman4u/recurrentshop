@@ -147,15 +147,9 @@ See docs/ directory for more features.
 # Installation
 
 ```shell
-git clone https://www.github.com/datalogai/recurrentshop.git
+git clone https://www.github.com/pyrestone/recurrentshop.git
 cd recurrentshop
 python setup.py install
-```
-
-note that Recurrentshop is not compatible with keras 2.2.*, so it is recommended to use keras==2.0.5:
-
-```shell
-pip install -U keras==2.0.5
 ```
 
 # Contribute
