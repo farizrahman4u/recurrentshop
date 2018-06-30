@@ -660,8 +660,13 @@ class RecurrentModel(Recurrent):
             ground_truth = states.pop()
             assert K.ndim(ground_truth) == 3, K.ndim(ground_truth)
             counter = states.pop()
-            zero = K.cast(K.zeros((1,))[0], 'int32')
-            one = K.cast(K.zeros((1,))[0], 'int32')
+            if K.backend() == 'tensorflow':
+                with tf.control_dependencies(None):
+                    zero = K.cast(K.zeros((1,))[0], 'int32')
+                    one = K.cast(K.zeros((1,))[0], 'int32')
+            else:
+                zero = K.cast(K.zeros((1,))[0], 'int32')
+                one = K.cast(K.zeros((1,))[0], 'int32')
             slices = [slice(None), counter[0] - K.switch(counter[0], one, zero)] + [slice(None)] * (K.ndim(ground_truth) - 2)
             ground_truth_slice = ground_truth[slices]
             readout = K.in_train_phase(K.switch(counter[0], ground_truth_slice, readout), readout)
