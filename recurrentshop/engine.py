@@ -3,7 +3,7 @@ from keras.models import Model
 from keras import initializers
 from .backend import rnn, learning_phase_scope
 from .generic_utils import serialize_function, deserialize_function
-from keras.engine.topology import Node, _collect_previous_mask, _collect_input_shape
+from keras.engine.base_layer import Node,_collect_previous_mask, _collect_input_shape
 import inspect
 
 
@@ -839,13 +839,13 @@ class RecurrentModel(Recurrent):
                     self._optional_input_placeholders[name] = self._get_optional_input_placeholder()
             return self._optional_input_placeholders[name]
         if num == 1:
-            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+            optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
             assert self._is_optional_input_placeholder(optional_input_placeholder)
             return optional_input_placeholder
         else:
             y = []
             for _ in range(num):
-                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder().inbound_nodes[0].output_tensors)[0]
+                optional_input_placeholder = _to_list(_OptionalInputPlaceHolder()._inbound_nodes[0].output_tensors)[0]
                 assert self._is_optional_input_placeholder(optional_input_placeholder)
                 y.append(optional_input_placeholder)
             return y
