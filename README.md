@@ -24,7 +24,7 @@ from keras.layers import *
 from keras.models import *
 from recurrentshop import *
 
-x_t = Input(5,)) # The input to the RNN at time t
+x_t = Input((5,)) # The input to the RNN at time t
 h_tm1 = Input((10,))  # Previous hidden state
 
 # Compute new hidden state
@@ -34,7 +34,7 @@ h_t = add([Dense(10)(x_t), Dense(10, use_bias=False)(h_tm1)])
 h_t = Activation('tanh')(h_t)
 
 # Build the RNN
-rnn = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, output_states=[h_t])
+rnn = RecurrentModel(input=x_t, initial_states=[h_tm1], output=h_t, final_states=[h_t])
 
 # rnn is a standard Keras `Recurrent` instance. RecuurentModel also accepts arguments such as unroll, return_sequences etc
 
@@ -44,7 +44,7 @@ x = Input((7,5))
 y = rnn(x)
 
 model = Model(x, y)
-model.predict(np.random.random((7, 5)))
+model.predict(np.random.random((1, 7, 5)))
 
 ```
 
