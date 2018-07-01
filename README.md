@@ -48,7 +48,7 @@ model = Model(x, y)
 
 # Run the RNN over a random sequence
 # Don't forget the batch shape when calling the model!
-out=model.predict(np.random.random((1, 7, 5)))
+out = model.predict(np.random.random((1, 7, 5)))
 print(out.shape)#->(1,10)
 
 
@@ -61,7 +61,7 @@ x = Input(shape=(None ,5))
 y = rnn2(x)
 model2 = Model(x, y)
 
-out2=model2.predict(np.random.random((1, 7, 5)))
+out2 = model2.predict(np.random.random((1, 7, 5)))
 print(out2.shape)#->(1,7,10)
 
 ```
