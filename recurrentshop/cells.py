@@ -136,6 +136,7 @@ class GRUCell(ExtendedRNNCell):
         z = add([x0, r0])
         z = Activation(self.recurrent_activation)(z)
         r = add([x1, r1])
+        r = Activation(self.recurrent_activation)(r)
         h_prime = add([recurrent_kernel_2(multiply([r, h_tm1])), x2])
         h_prime = Activation(self.activation)(h_prime)
         gate = Lambda(lambda x: x[0] * x[1] + (1. - x[0]) * x[2], output_shape=lambda s: s[0])
