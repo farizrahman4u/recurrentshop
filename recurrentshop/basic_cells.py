@@ -57,5 +57,6 @@ class LSTMCell(RNNCell):
         c = add([multiply([f, c_tm1]), multiply([i, c_prime])])
         c = Activation('tanh')(c)
         o = add([Dense(output_dim)(x), Dense(output_dim, use_bias=False)(h_tm1)])
+        o = Activation('sigmoid')(o)
         h = multiply([o, c])
         return Model([x, h_tm1, c_tm1], [h, h, c])
