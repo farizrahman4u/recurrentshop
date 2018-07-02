@@ -179,5 +179,6 @@ class LSTMCell(ExtendedRNNCell):
         c = add([multiply([f, c_tm1]), multiply([i, c_prime])])
         c = Activation(self.activation)(c)
         o = add([x3, r3])
+        o = Activation(self.recurrent_activation)(o)
         h = multiply([o, c])
         return Model([x, h_tm1, c_tm1], [h, Identity()(h), c])
