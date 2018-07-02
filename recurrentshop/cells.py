@@ -131,14 +131,15 @@ class GRUCell(ExtendedRNNCell):
                                    use_bias=False)
         kernel_out = kernel(x)
         recurrent_kernel_1_out = recurrent_kernel_1(h_tm1)
-        x0, x1, x2 = get_slices(kernel_out, 3)
-        r0, r1 = get_slices(recurrent_kernel_1_out, 2)
-        z = add([x0, r0])
-        z = Activation(self.recurrent_activation)(z)
-        r = add([x1, r1])
-        r = Activation(self.recurrent_activation)(r)
-        h_prime = add([recurrent_kernel_2(multiply([r, h_tm1])), x2])
-        h_prime = Activation(self.activation)(h_prime)
+        x_z, x_r, x_h = get_slices(kernel_out, 3)
+        r_z, r_r = get_slices(recurrent_kernel_1_out, 2)
+        z = add([x_z, r_z])
+        z = Activation(self.recurrent_activation)(z) # sigma_g
+        r = add([x_r, r_r])
+        r = Activation(self.recurrent_activation)(r) # sigma_g
+        h_prime = add([recurrent_kernel_2(multiply([r, h_tm1])), x_h])
+        h_prime = Activation(self.activation)(h_prime) # sigma_h
+        # h = z * h' + (1 - z) * h_tm1
         gate = Lambda(lambda x: x[0] * x[1] + (1. - x[0]) * x[2], output_shape=lambda s: s[0])
         h = gate([z, h_prime, h_tm1])
         return Model([x, h_tm1], [h, Identity()(h)])
