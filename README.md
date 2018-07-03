@@ -162,5 +162,5 @@ Create an issue, with a minimal script to reproduce the problem you are facing.
 
 # Have questions?
 
-Create an issue or drop me an email (fariz@datalog.ai).
+Create an issue or drop me an email (farizrahman4u@gmail.com).
 
